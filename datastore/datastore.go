@@ -2,6 +2,8 @@ package datastore
 
 import (
 	"database/sql"
+	"errors"
+	"fmt"
 	"github.com/jmoiron/sqlx"
 	"github.com/petert82/trans-api/trans"
 	"github.com/petert82/trans-api/xliff"
@@ -19,6 +21,10 @@ func New(db *sqlx.DB) *DataStore {
 func (ds *DataStore) getLanguage(code string) (l trans.Language, err error) {
 	err = ds.db.Get(&l, "SELECT id, name, code FROM language WHERE code=?", code)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return l, errors.New(fmt.Sprintf("Language '%v' does not exist in database", code))
+		}
+
 		return l, err
 	}
 
