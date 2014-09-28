@@ -40,18 +40,19 @@ func main() {
 		}
 	}()
 
+	var count int
 	go func() {
 		var db *sqlx.DB
 		db, err = sqlx.Connect("sqlite3", dbFile)
 		check(err)
 		ds := datastore.New(db)
-		count, err := ds.ImportDir(importPath, results)
+		count, err = ds.ImportDir(importPath, results)
 		check(err)
 
-		elapsed := time.Since(start).Seconds()
-		fmt.Printf("Imported %v files in %fs\n", count, elapsed)
 		done <- true
 	}()
-
 	<-done
+
+	elapsed := time.Since(start).Seconds()
+	fmt.Printf("Imported %v files in %fs\n", count, elapsed)
 }
