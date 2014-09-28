@@ -138,7 +138,12 @@ func (ds *DataStore) ImportDir(dir string, notify chan string) (count int, err e
 	}
 
 	for i, file := range files {
-		_, err := xliff.NewFromFile(file)
+		xliff, err := xliff.NewFromFile(file)
+		if err != nil {
+			return i, err
+		}
+
+		err = ds.ImportDomain(&xliff.File.XliffDomain)
 		if err != nil {
 			return i, err
 		}

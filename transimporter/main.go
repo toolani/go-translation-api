@@ -7,6 +7,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/petert82/trans-api/datastore"
 	"os"
+	"time"
 )
 
 func check(e error) {
@@ -25,6 +26,7 @@ func parseArgs(args []string) (dbPath string, importPath string, err error) {
 }
 
 func main() {
+	start := time.Now()
 	dbFile, importPath, err := parseArgs(os.Args[1:])
 	check(err)
 
@@ -46,16 +48,10 @@ func main() {
 		count, err := ds.ImportDir(importPath, results)
 		check(err)
 
-		fmt.Printf("Imported %v files\n", count)
+		elapsed := time.Since(start).Seconds()
+		fmt.Printf("Imported %v files in %fs\n", count, elapsed)
 		done <- true
 	}()
 
 	<-done
-
-	// err = ds.ImportDomain(&xliff.File.XliffDomain)
-	// if err == nil {
-	// 	fmt.Println("ok")
-	// } else {
-	// 	fmt.Println("NOK: ", err.Error())
-	// }
 }

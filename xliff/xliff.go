@@ -92,7 +92,7 @@ func NewFromFile(file string) (xliff *Xliff, err error) {
 	} else {
 		if xliff.File.XliffDomain.Language() != expectLang {
 			return nil, errors.New(fmt.Sprintf(
-				"Found language %v but expected %v based on filename '%v' ",
+				"Found language '%v' but expected '%v' based on filename '%v' ",
 				xliff.File.XliffDomain.Language(),
 				expectLang,
 				file))
