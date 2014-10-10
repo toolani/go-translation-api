@@ -11,11 +11,12 @@ import (
 )
 
 type DataStore struct {
-	db *sqlx.DB
+	db          *sqlx.DB
+	stringCache map[string]int64
 }
 
 func New(db *sqlx.DB) *DataStore {
-	return &DataStore{db: db}
+	return &DataStore{db: db, stringCache: make(map[string]int64)}
 }
 
 func (ds *DataStore) getLanguage(code string) (l trans.Language, err error) {
@@ -75,8 +76,8 @@ func (ds *DataStore) getTranslationId(t *trans.Translation, domainId int64) (id 
 	return id, nil
 }
 
-func (ds *DataStore) upsertString(t *trans.Translation, domainId int64) (id int64, err error) {
-	result, err := ds.db.Exec(`INSERT OR REPLACE INTO string (id, name, domain_id) VALUES ((SELECT id FROM string WHERE name = ? AND domain_id = ?), ?, ?)`, t.Name, domainId, t.Name, domainId)
+func (ds *DataStore) upsertString(name string, domainId int64) (id int64, err error) {
+	result, err := ds.db.Exec(`INSERT OR REPLACE INTO string (id, name, domain_id) VALUES ((SELECT id FROM string WHERE name = ? AND domain_id = ?), ?, ?)`, name, domainId, name, domainId)
 	if err != nil {
 		return 0, err
 	}
@@ -89,20 +90,12 @@ func (ds *DataStore) upsertString(t *trans.Translation, domainId int64) (id int6
 	return id, nil
 }
 
-func (ds *DataStore) insertTranslation(t *trans.Translation, domainId int64) (err error) {
-	stringId, err := ds.upsertString(t, domainId)
-	if err != nil {
-		return err
-	}
+func (ds *DataStore) insertTranslation(t *trans.Translation, stringId int64, domainId int64) (err error) {
 	_, err = ds.db.Exec(`INSERT INTO translation (language_id, content, string_id) VALUES (?, ?, ?)`, t.Language.Id, t.Content, stringId)
 	return err
 }
 
-func (ds *DataStore) updateTranslation(t *trans.Translation, domainId int64) (err error) {
-	stringId, err := ds.upsertString(t, domainId)
-	if err != nil {
-		return err
-	}
+func (ds *DataStore) updateTranslation(t *trans.Translation, stringId int64, domainId int64) (err error) {
 	_, err = ds.db.Exec(`UPDATE translation SET language_id=?, content=?, string_id=? WHERE id=?`, t.Language.Id, t.Content, stringId, t.Id)
 	return err
 }
@@ -121,12 +114,21 @@ func (ds *DataStore) ImportDomain(d trans.Domain) (err error) {
 	for _, t := range d.Translations() {
 		t.Language = &l
 
+		stringId, ok := ds.stringCache[t.Name]
+		if !ok {
+			stringId, err = ds.upsertString(t.Name, domId)
+			if err != nil {
+				return err
+			}
+			ds.stringCache[t.Name] = stringId
+		}
+
 		if t.Id, err = ds.getTranslationId(&t, domId); err != nil {
 			if err == sql.ErrNoRows {
-				err = ds.insertTranslation(&t, domId)
+				err = ds.insertTranslation(&t, stringId, domId)
 			}
 		} else {
-			err = ds.updateTranslation(&t, domId)
+			err = ds.updateTranslation(&t, stringId, domId)
 		}
 
 		if err != nil {
