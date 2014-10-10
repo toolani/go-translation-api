@@ -12,11 +12,12 @@ import (
 
 type DataStore struct {
 	db          *sqlx.DB
+	domainCache map[string]int64
 	stringCache map[string]int64
 }
 
 func New(db *sqlx.DB) *DataStore {
-	return &DataStore{db: db, stringCache: make(map[string]int64)}
+	return &DataStore{db: db, stringCache: make(map[string]int64), domainCache: make(map[string]int64)}
 }
 
 func (ds *DataStore) getLanguage(code string) (l trans.Language, err error) {
@@ -33,11 +34,16 @@ func (ds *DataStore) getLanguage(code string) (l trans.Language, err error) {
 }
 
 func (ds *DataStore) getDomainId(name string) (id int64, err error) {
+	if id, ok := ds.domainCache[name]; ok {
+		return id, nil
+	}
+
 	row := ds.db.QueryRow("SELECT id FROM domain WHERE name=? ", name)
 	err = row.Scan(&id)
 	if err != nil {
 		return 0, err
 	}
+	ds.domainCache[name] = id
 
 	return id, nil
 }
