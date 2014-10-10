@@ -10,7 +10,6 @@ type Domain interface {
 type Translation struct {
 	Id       int
 	Language *Language
-	Hash     string `xml:"id,attr"`
 	Name     string `xml:"resname,attr"`
 	Content  string `xml:"target"`
 }

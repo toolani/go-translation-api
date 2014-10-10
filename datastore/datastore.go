@@ -76,7 +76,7 @@ func (ds *DataStore) getTranslationId(t *trans.Translation, domainId int64) (id 
 }
 
 func (ds *DataStore) upsertString(t *trans.Translation, domainId int64) (id int64, err error) {
-	result, err := ds.db.Exec(`INSERT OR REPLACE INTO string (id, name, domain_id, hash) VALUES ((SELECT id FROM string WHERE name = ? AND domain_id = ?), ?, ?, ?)`, t.Name, domainId, t.Name, domainId, t.Hash)
+	result, err := ds.db.Exec(`INSERT OR REPLACE INTO string (id, name, domain_id) VALUES ((SELECT id FROM string WHERE name = ? AND domain_id = ?), ?, ?)`, t.Name, domainId, t.Name, domainId)
 	if err != nil {
 		return 0, err
 	}
