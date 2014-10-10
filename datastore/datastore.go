@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jmoiron/sqlx"
-	"github.com/petert82/trans-api/trans"
-	"github.com/petert82/trans-api/xliff"
+	"github.com/petert82/go-translation-api/trans"
+	"github.com/petert82/go-translation-api/xliff"
 	"path/filepath"
 )
 

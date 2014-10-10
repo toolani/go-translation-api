@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/petert82/trans-api/datastore"
+	"github.com/petert82/go-translation-api/datastore"
 	"os"
 	"time"
 )
