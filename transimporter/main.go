@@ -45,7 +45,8 @@ func main() {
 		var db *sqlx.DB
 		db, err = sqlx.Connect("sqlite3", dbFile)
 		check(err)
-		ds := datastore.New(db)
+		ds, err := datastore.New(db)
+		check(err)
 		count, err = ds.ImportDir(importPath, results)
 		check(err)
 

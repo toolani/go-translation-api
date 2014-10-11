@@ -21,8 +21,22 @@ type StringKey struct {
 	Name     string
 }
 
-func New(db *sqlx.DB) *DataStore {
-	return &DataStore{db: db, domainCache: make(map[string]int64), stringCache: make(map[StringKey]int64)}
+func New(db *sqlx.DB) (ds *DataStore, err error) {
+	ds = &DataStore{db: db, domainCache: make(map[string]int64), stringCache: make(map[StringKey]int64)}
+
+	_, err = db.Exec("PRAGMA foreign_keys = ON")
+	if err != nil {
+		return ds, err
+	}
+	_, err = db.Exec("PRAGMA journal_mode = WAL")
+	if err != nil {
+		return ds, err
+	}
+	_, err = db.Exec("PRAGMA synchronous = NORMAL")
+	if err != nil {
+		return ds, err
+	}
+	return ds, nil
 }
 
 func (ds *DataStore) getLanguage(code string) (l trans.Language, err error) {
