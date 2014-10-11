@@ -13,11 +13,16 @@ import (
 type DataStore struct {
 	db          *sqlx.DB
 	domainCache map[string]int64
-	stringCache map[string]int64
+	stringCache map[StringKey]int64
+}
+
+type StringKey struct {
+	DomainId int64
+	Name     string
 }
 
 func New(db *sqlx.DB) *DataStore {
-	return &DataStore{db: db, stringCache: make(map[string]int64), domainCache: make(map[string]int64)}
+	return &DataStore{db: db, domainCache: make(map[string]int64), stringCache: make(map[StringKey]int64)}
 }
 
 func (ds *DataStore) getLanguage(code string) (l trans.Language, err error) {
@@ -120,13 +125,13 @@ func (ds *DataStore) ImportDomain(d trans.Domain) (err error) {
 	for _, t := range d.Translations() {
 		t.Language = &l
 
-		stringId, ok := ds.stringCache[t.Name]
+		stringId, ok := ds.stringCache[StringKey{DomainId: domId, Name: t.Name}]
 		if !ok {
 			stringId, err = ds.upsertString(t.Name, domId)
 			if err != nil {
 				return err
 			}
-			ds.stringCache[t.Name] = stringId
+			ds.stringCache[StringKey{DomainId: domId, Name: t.Name}] = stringId
 		}
 
 		if t.Id, err = ds.getTranslationId(&t, domId); err != nil {
