@@ -179,45 +179,6 @@ func (ds *DataStore) createOrGetDomain(name string) (id int64, err error) {
 	return id, err
 }
 
-func (ds *DataStore) GetFullDomain(name string) (d trans.Domain, err error) {
-	var rows []struct {
-		StringId      int64  `db:"stringId"`
-		Name          string `db:"name"`
-		LanguageId    int64  `db:"languageId"`
-		Code          string `db:"code"`
-		TranslationId int64  `db:"translationId"`
-		Content       string `db:"content"`
-	}
-	err = ds.db.Select(&rows, "SELECT string.id AS stringId, string.name, translation.language_id AS languageId, language.code, translation.id AS translationId, translation.content FROM string INNER JOIN translation ON string.id = translation.string_id INNER JOIN language ON translation.language_id = language.id WHERE string.domain_id = (SELECT id FROM domain where domain.name = ?)", name)
-	if err != nil {
-		return d, err
-	}
-
-	dom := Domain{name: "", strings: make([]trans.String, 0)}
-	strings := make(map[string]String)
-
-	for _, r := range rows {
-		if dom.name == "" {
-			dom.SetName(r.Name)
-		}
-		l := trans.Language{Id: r.LanguageId, Code: r.Code}
-		t := Translation{id: r.TranslationId, content: r.Content}
-		if s, ok := strings[r.Name]; ok == true {
-			s.translations[l] = &t
-		} else {
-			s := String{id: r.StringId, name: r.Name, translations: make(map[trans.Language]trans.Translation)}
-			s.translations[l] = &t
-			strings[r.Name] = s
-		}
-	}
-
-	for _, s := range strings {
-		dom.strings = append(dom.strings, &String{id: s.id, name: s.name, translations: s.translations})
-	}
-
-	return &dom, nil
-}
-
 func (ds *DataStore) getStringId(name string, domainId int64) (id int64, err error) {
 	start := time.Now()
 	defer func() { ds.Stats.Log("string", "get", time.Since(start)) }()
@@ -284,6 +245,72 @@ func (ds *DataStore) updateTranslation(t trans.Translation, transId int64, langI
 	defer func() { ds.Stats.Log("translation", "update", time.Since(start)) }()
 
 	_, err = ds.db.Exec(`UPDATE translation SET language_id=?, content=?, string_id=? WHERE id=?`, langId, t.Content(), stringId, transId)
+
+	return err
+}
+
+func (ds *DataStore) GetFullDomain(name string) (d trans.Domain, err error) {
+	var rows []struct {
+		StringId      int64  `db:"stringId"`
+		Name          string `db:"name"`
+		LanguageId    int64  `db:"languageId"`
+		Code          string `db:"code"`
+		TranslationId int64  `db:"translationId"`
+		Content       string `db:"content"`
+	}
+	err = ds.db.Select(&rows, "SELECT string.id AS stringId, string.name, translation.language_id AS languageId, language.code, translation.id AS translationId, translation.content FROM string INNER JOIN translation ON string.id = translation.string_id INNER JOIN language ON translation.language_id = language.id WHERE string.domain_id = (SELECT id FROM domain where domain.name = ?)", name)
+	if err != nil {
+		return d, err
+	}
+
+	dom := Domain{name: "", strings: make([]trans.String, 0)}
+	strings := make(map[string]String)
+
+	for _, r := range rows {
+		if dom.name == "" {
+			dom.SetName(r.Name)
+		}
+		l := trans.Language{Id: r.LanguageId, Code: r.Code}
+		t := Translation{id: r.TranslationId, content: r.Content}
+		if s, ok := strings[r.Name]; ok == true {
+			s.translations[l] = &t
+		} else {
+			s := String{id: r.StringId, name: r.Name, translations: make(map[trans.Language]trans.Translation)}
+			s.translations[l] = &t
+			strings[r.Name] = s
+		}
+	}
+
+	for _, s := range strings {
+		dom.strings = append(dom.strings, &String{id: s.id, name: s.name, translations: s.translations})
+	}
+
+	return &dom, nil
+}
+
+func (ds *DataStore) UpdateTranslation(domainName, stringName, langCode, content string) (err error) {
+	domId, err := ds.getDomainId(domainName)
+	if err != nil {
+		return err
+	}
+
+	stringId, err := ds.getStringId(stringName, domId)
+	if err != nil {
+		return err
+	}
+
+	lang, err := ds.getLanguage(langCode)
+	if err != nil {
+		return err
+	}
+
+	t := &Translation{content: content}
+	transId, err := ds.getTranslationId(t, lang.Id, stringId, domId)
+	if err != nil {
+		return err
+	}
+
+	err = ds.updateTranslation(t, transId, lang.Id, stringId, domId)
 
 	return err
 }

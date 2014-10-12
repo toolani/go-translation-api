@@ -88,6 +88,45 @@ func getDomain(w http.ResponseWriter, req *http.Request) {
 	enc := json.NewEncoder(w)
 	if err := enc.Encode(NewDomain(dom)); err != nil {
 		http.Error(w, fmt.Sprintf("Error: %v", err.Error()), http.StatusBadRequest)
+		return
+	}
+
+	fmt.Fprint(w, "{\"result\":\"ok\"}\n")
+}
+
+func updateTranslation(w http.ResponseWriter, req *http.Request) {
+	dName := req.FormValue("domain")
+	if dName == "" {
+		http.Error(w, "No domain given", http.StatusNotFound)
+		return
+	}
+
+	sName := req.FormValue("string")
+	if sName == "" {
+		http.Error(w, "No string given", http.StatusNotFound)
+		return
+	}
+
+	lang := req.FormValue("lang")
+	if lang == "" {
+		http.Error(w, "No lang given", http.StatusNotFound)
+		return
+	}
+
+	var content struct {
+		Content string `json:"content"`
+	}
+
+	decoder := json.NewDecoder(req.Body)
+	err := decoder.Decode(&content)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Could not decode request (%v)", err.Error()), http.StatusBadRequest)
+		return
+	}
+
+	err = ds.UpdateTranslation(dName, sName, lang, content.Content)
+	if err != nil {
+		http.Error(w, "Error: %v", http.StatusInternalServerError)
 	}
 	return
 }
@@ -107,6 +146,7 @@ func main() {
 
 	pathHandler := muxchainutil.NewPathMux()
 	pathHandler.Handle("/domains/:name", http.HandlerFunc(getDomain))
+	pathHandler.Handle("/domains/:domain/strings/:string/translations/:lang", http.HandlerFunc(updateTranslation))
 
 	muxchain.Chain("/", headerHandler, pathHandler)
 	http.ListenAndServe(fmt.Sprintf(":%v", port), muxchain.Default)
