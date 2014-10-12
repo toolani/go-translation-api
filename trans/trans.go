@@ -1,21 +1,27 @@
 package trans
 
+// A whole translation 'domain'
 type Domain interface {
 	Name() string
 	SetName(string)
-	Language() string
-	Translations() []Translation
+	Strings() []String
 }
 
-type Translation struct {
-	Id       int
-	Language *Language
-	Name     string `xml:"resname,attr"`
-	Content  string `xml:"target"`
+// A translatable string
+type String interface {
+	Name() string
+	SetName(string)
+	Translations() map[Language]Translation
+}
+
+// A translation of a string
+type Translation interface {
+	Content() string
+	SetContent(string)
 }
 
 type Language struct {
-	Id   int
-	Code string
+	Id   int64
+	Code string // language / locale code
 	Name string
 }

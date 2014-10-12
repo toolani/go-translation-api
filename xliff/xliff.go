@@ -36,10 +36,10 @@ type XliffTool struct {
 }
 
 type XliffDomain struct {
-	name              string
-	SourceLang        string             `xml:"source-language,attr"`
-	TargetLang        string             `xml:"target-language,attr"`
-	XliffTranslations []XliffTranslation `xml:"body>trans-unit"`
+	name       string
+	SourceLang string         `xml:"source-language,attr"`
+	TargetLang string         `xml:"target-language,attr"`
+	TransUnits []*XliffString `xml:"body>trans-unit"`
 }
 
 func (xd XliffDomain) Name() string {
@@ -48,21 +48,39 @@ func (xd XliffDomain) Name() string {
 func (xd *XliffDomain) SetName(name string) {
 	xd.name = name
 }
-func (xd XliffDomain) Language() string {
-	return xd.TargetLang
-}
-func (xd XliffDomain) Translations() []trans.Translation {
-	ts := make([]trans.Translation, len(xd.XliffTranslations))
-	for i, t := range xd.XliffTranslations {
-		ts[i] = t.Translation
+func (xd XliffDomain) Strings() []trans.String {
+	ss := make([]trans.String, len(xd.TransUnits))
+	for i, s := range xd.TransUnits {
+		ss[i] = s
 	}
+
+	return ss
+}
+
+type XliffString struct {
+	language         *trans.Language
+	TransUnitName    string `xml:"resname,attr"`
+	TransUnitContent string `xml:"target"`
+	Source           string `xml:"source"`
+}
+
+func (xs *XliffString) Name() string {
+	return xs.TransUnitName
+}
+func (xs *XliffString) SetName(name string) {
+	xs.TransUnitName = name
+}
+func (xs *XliffString) Translations() map[trans.Language]trans.Translation {
+	ts := make(map[trans.Language]trans.Translation)
+	ts[*xs.language] = xs
 
 	return ts
 }
-
-type XliffTranslation struct {
-	trans.Translation
-	Source string `xml:"source"`
+func (xs *XliffString) Content() string {
+	return xs.TransUnitContent
+}
+func (xs *XliffString) SetContent(content string) {
+	xs.TransUnitContent = content
 }
 
 func infoFromFilename(filename string) (name string, expectLang string, err error) {
@@ -90,15 +108,20 @@ func NewFromFile(file string) (xliff *Xliff, err error) {
 	if name, expectLang, err := infoFromFilename(filepath.Base(file)); err != nil {
 		return nil, err
 	} else {
-		if xliff.File.XliffDomain.Language() != expectLang {
+		if xliff.File.XliffDomain.TargetLang != expectLang {
 			return nil, errors.New(fmt.Sprintf(
 				"Found language '%v' but expected '%v' based on filename '%v' ",
-				xliff.File.XliffDomain.Language(),
+				xliff.File.XliffDomain.TargetLang,
 				expectLang,
 				file))
 		}
 
 		xliff.File.XliffDomain.SetName(name)
+
+		l := trans.Language{Code: xliff.File.XliffDomain.TargetLang}
+		for _, s := range xliff.File.XliffDomain.TransUnits {
+			s.language = &l
+		}
 
 		return xliff, nil
 	}

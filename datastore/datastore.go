@@ -136,19 +136,6 @@ func (ds *DataStore) createOrGetDomain(name string) (id int64, err error) {
 	return id, err
 }
 
-func (ds *DataStore) getTranslationId(t *trans.Translation, domainId int64) (id int, err error) {
-	start := time.Now()
-	defer func() { ds.Stats.Log("translation", "get", time.Since(start)) }()
-
-	row := ds.db.QueryRow("SELECT translation.id FROM string INNER JOIN translation ON string.id = translation.string_id WHERE name=? AND language_id=? AND domain_id=?", t.Name, t.Language.Id, domainId)
-	err = row.Scan(&id)
-	if err != nil {
-		return 0, err
-	}
-
-	return id, nil
-}
-
 func (ds *DataStore) getStringId(name string, domainId int64) (id int64, err error) {
 	start := time.Now()
 	defer func() { ds.Stats.Log("string", "get", time.Since(start)) }()
@@ -188,57 +175,72 @@ func (ds *DataStore) createOrGetString(name string, domainId int64) (id int64, e
 	return id, err
 }
 
-func (ds *DataStore) insertTranslation(t *trans.Translation, stringId int64, domainId int64) (err error) {
+func (ds *DataStore) getTranslationId(t trans.Translation, langId int64, stringId int64, domainId int64) (id int64, err error) {
+	start := time.Now()
+	defer func() { ds.Stats.Log("translation", "get", time.Since(start)) }()
+
+	row := ds.db.QueryRow("SELECT translation.id FROM string INNER JOIN translation ON string.id = translation.string_id WHERE string.id=? AND language_id=? AND domain_id=?", stringId, langId, domainId)
+	err = row.Scan(&id)
+	if err != nil {
+		return 0, err
+	}
+
+	return id, nil
+}
+
+func (ds *DataStore) insertTranslation(t trans.Translation, langId int64, stringId int64, domainId int64) (err error) {
 	start := time.Now()
 	defer func() { ds.Stats.Log("translation", "insert", time.Since(start)) }()
 
-	_, err = ds.db.Exec(`INSERT INTO translation (language_id, content, string_id) VALUES (?, ?, ?)`, t.Language.Id, t.Content, stringId)
+	_, err = ds.db.Exec(`INSERT INTO translation (language_id, content, string_id) VALUES (?, ?, ?)`, langId, t.Content(), stringId)
 
 	return err
 }
 
-func (ds *DataStore) updateTranslation(t *trans.Translation, stringId int64, domainId int64) (err error) {
+func (ds *DataStore) updateTranslation(t trans.Translation, transId int64, langId int64, stringId int64, domainId int64) (err error) {
 	start := time.Now()
 	defer func() { ds.Stats.Log("translation", "update", time.Since(start)) }()
 
-	_, err = ds.db.Exec(`UPDATE translation SET language_id=?, content=?, string_id=? WHERE id=?`, t.Language.Id, t.Content, stringId, t.Id)
+	_, err = ds.db.Exec(`UPDATE translation SET language_id=?, content=?, string_id=? WHERE id=?`, langId, t.Content(), stringId, transId)
 
 	return err
 }
 
 func (ds *DataStore) ImportDomain(d trans.Domain) (err error) {
-	l, err := ds.getLanguage(d.Language())
-	if err != nil {
-		return err
-	}
 
 	domId, err := ds.createOrGetDomain(d.Name())
 	if err != nil {
 		return err
 	}
 
-	for _, t := range d.Translations() {
-		t.Language = &l
-
-		stringId, ok := ds.stringCache[StringKey{DomainId: domId, Name: t.Name}]
+	for _, s := range d.Strings() {
+		// Get the string's ID
+		stringId, ok := ds.stringCache[StringKey{DomainId: domId, Name: s.Name()}]
 		if !ok {
-			stringId, err = ds.createOrGetString(t.Name, domId)
+			stringId, err = ds.createOrGetString(s.Name(), domId)
 			if err != nil {
 				return err
 			}
-			ds.stringCache[StringKey{DomainId: domId, Name: t.Name}] = stringId
+			ds.stringCache[StringKey{DomainId: domId, Name: s.Name()}] = stringId
 		}
 
-		if t.Id, err = ds.getTranslationId(&t, domId); err != nil {
-			if err == sql.ErrNoRows {
-				err = ds.insertTranslation(&t, stringId, domId)
+		for l, t := range s.Translations() {
+			lang, err := ds.getLanguage(l.Code)
+			if err != nil {
+				return err
 			}
-		} else {
-			err = ds.updateTranslation(&t, stringId, domId)
-		}
 
-		if err != nil {
-			return err
+			if transId, err := ds.getTranslationId(t, lang.Id, stringId, domId); err == nil {
+				err = ds.updateTranslation(t, transId, lang.Id, stringId, domId)
+			} else {
+				if err == sql.ErrNoRows {
+					err = ds.insertTranslation(t, lang.Id, stringId, domId)
+				}
+			}
+
+			if err != nil {
+				return err
+			}
 		}
 	}
 
