@@ -30,7 +30,7 @@ func main() {
 	dbFile, importPath, err := parseArgs(os.Args[1:])
 	check(err)
 
-	results := make(chan string)
+	results := make(chan string, 100)
 	done := make(chan bool, 1)
 
 	go func() {
@@ -40,7 +40,10 @@ func main() {
 		}
 	}()
 
-	var count int
+	var (
+		count int
+		stats datastore.Stats
+	)
 	go func() {
 		var db *sqlx.DB
 		db, err = sqlx.Connect("sqlite3", dbFile)
@@ -50,10 +53,14 @@ func main() {
 		count, err = ds.ImportDir(importPath, results)
 		check(err)
 
+		stats = ds.Stats
+
 		done <- true
 	}()
 	<-done
 
 	elapsed := time.Since(start).Seconds()
-	fmt.Printf("Imported %v files in %fs\n", count, elapsed)
+	fmt.Printf("Imported %v files in %fs\n\n", count, elapsed)
+
+	fmt.Println(stats)
 }
