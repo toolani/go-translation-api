@@ -68,6 +68,10 @@ func parseArgs(args []string) (dbPath string, err error) {
 	return args[0], nil
 }
 
+func setJsonHeaders(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+}
+
 func getDomain(w http.ResponseWriter, req *http.Request) {
 	name := req.FormValue("name")
 	if name == "" {
@@ -99,9 +103,11 @@ func main() {
 	ds, err = datastore.New(db)
 	check(err)
 
+	headerHandler := http.HandlerFunc(setJsonHeaders)
+
 	pathHandler := muxchainutil.NewPathMux()
 	pathHandler.Handle("/domains/:name", http.HandlerFunc(getDomain))
 
-	muxchain.Chain("/", pathHandler)
+	muxchain.Chain("/", headerHandler, pathHandler)
 	http.ListenAndServe(fmt.Sprintf(":%v", port), muxchain.Default)
 }
