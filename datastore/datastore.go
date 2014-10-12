@@ -75,6 +75,49 @@ func New(db *sqlx.DB) (ds *DataStore, err error) {
 	return ds, nil
 }
 
+type Domain struct {
+	name    string
+	strings []trans.String
+}
+
+func (d *Domain) Name() string {
+	return d.name
+}
+func (d *Domain) SetName(name string) {
+	d.name = name
+}
+func (d *Domain) Strings() []trans.String {
+	return d.strings
+}
+
+type String struct {
+	id           int64
+	name         string
+	translations map[trans.Language]trans.Translation
+}
+
+func (s *String) Name() string {
+	return s.name
+}
+func (s *String) SetName(name string) {
+	s.name = name
+}
+func (s *String) Translations() map[trans.Language]trans.Translation {
+	return s.translations
+}
+
+type Translation struct {
+	id      int64
+	content string
+}
+
+func (t *Translation) Content() string {
+	return t.content
+}
+func (t *Translation) SetContent(content string) {
+	t.content = content
+}
+
 func (ds *DataStore) getLanguage(code string) (l trans.Language, err error) {
 	start := time.Now()
 	defer func() { ds.Stats.Log("language", "get", time.Since(start)) }()
@@ -134,6 +177,45 @@ func (ds *DataStore) createOrGetDomain(name string) (id int64, err error) {
 	}
 
 	return id, err
+}
+
+func (ds *DataStore) GetFullDomain(name string) (d trans.Domain, err error) {
+	var rows []struct {
+		StringId      int64  `db:"stringId"`
+		Name          string `db:"name"`
+		LanguageId    int64  `db:"languageId"`
+		Code          string `db:"code"`
+		TranslationId int64  `db:"translationId"`
+		Content       string `db:"content"`
+	}
+	err = ds.db.Select(&rows, "SELECT string.id AS stringId, string.name, translation.language_id AS languageId, language.code, translation.id AS translationId, translation.content FROM string INNER JOIN translation ON string.id = translation.string_id INNER JOIN language ON translation.language_id = language.id WHERE string.domain_id = (SELECT id FROM domain where domain.name = ?)", name)
+	if err != nil {
+		return d, err
+	}
+
+	dom := Domain{name: "", strings: make([]trans.String, 0)}
+	strings := make(map[string]String)
+
+	for _, r := range rows {
+		if dom.name == "" {
+			dom.SetName(r.Name)
+		}
+		l := trans.Language{Id: r.LanguageId, Code: r.Code}
+		t := Translation{id: r.TranslationId, content: r.Content}
+		if s, ok := strings[r.Name]; ok == true {
+			s.translations[l] = &t
+		} else {
+			s := String{id: r.StringId, name: r.Name, translations: make(map[trans.Language]trans.Translation)}
+			s.translations[l] = &t
+			strings[r.Name] = s
+		}
+	}
+
+	for _, s := range strings {
+		dom.strings = append(dom.strings, &String{id: s.id, name: s.name, translations: s.translations})
+	}
+
+	return &dom, nil
 }
 
 func (ds *DataStore) getStringId(name string, domainId int64) (id int64, err error) {
