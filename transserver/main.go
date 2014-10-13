@@ -5,12 +5,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/gorilla/mux"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/petert82/go-translation-api/datastore"
 	"github.com/petert82/go-translation-api/trans"
-	"github.com/stephens2424/muxchain"
-	"github.com/stephens2424/muxchain/muxchainutil"
 	"net/http"
 	"os"
 )
@@ -68,16 +67,15 @@ func parseArgs(args []string) (dbPath string, err error) {
 	return args[0], nil
 }
 
-func setJsonHeaders(w http.ResponseWriter, req *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+func setJsonHeaders(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		h.ServeHTTP(w, r)
+	})
 }
 
-func getDomain(w http.ResponseWriter, req *http.Request) {
-	name := req.FormValue("name")
-	if name == "" {
-		http.Error(w, "No name given", http.StatusNotFound)
-		return
-	}
+func getDomainHandler(w http.ResponseWriter, req *http.Request) {
+	name := mux.Vars(req)["name"]
 
 	dom, err := ds.GetFullDomain(name)
 	if err != nil {
@@ -92,24 +90,10 @@ func getDomain(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func updateTranslation(w http.ResponseWriter, req *http.Request) {
-	dName := req.FormValue("domain")
-	if dName == "" {
-		http.Error(w, "No domain given", http.StatusNotFound)
-		return
-	}
-
-	sName := req.FormValue("string")
-	if sName == "" {
-		http.Error(w, "No string given", http.StatusNotFound)
-		return
-	}
-
-	lang := req.FormValue("lang")
-	if lang == "" {
-		http.Error(w, "No lang given", http.StatusNotFound)
-		return
-	}
+func updateTranslationHandler(w http.ResponseWriter, req *http.Request) {
+	dName := mux.Vars(req)["domain"]
+	sName := mux.Vars(req)["string"]
+	lang := mux.Vars(req)["lang"]
 
 	var content struct {
 		Content string `json:"content"`
@@ -141,12 +125,14 @@ func main() {
 	ds, err = datastore.New(db)
 	check(err)
 
-	headerHandler := http.HandlerFunc(setJsonHeaders)
+	r := mux.NewRouter().StrictSlash(true)
 
-	pathHandler := muxchainutil.NewPathMux()
-	pathHandler.Handle("/domains/:name", http.HandlerFunc(getDomain))
-	pathHandler.Handle("/domains/:domain/strings/:string/translations/:lang", http.HandlerFunc(updateTranslation))
+	domain := r.PathPrefix("/domains/{name}/").Subrouter()
+	domain.Methods("GET").Handler(setJsonHeaders(http.HandlerFunc(getDomainHandler)))
 
-	muxchain.Chain("/", headerHandler, pathHandler)
-	http.ListenAndServe(fmt.Sprintf(":%v", port), muxchain.Default)
+	translation := r.PathPrefix("/domains/{domain}/strings/{string}/translations/{lang}")
+	translation.Methods("PUT").Handler(setJsonHeaders(http.HandlerFunc(updateTranslationHandler)))
+
+	fmt.Printf("Listening on port %v\n", port)
+	http.ListenAndServe(fmt.Sprintf(":%v", port), r)
 }
