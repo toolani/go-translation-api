@@ -90,8 +90,6 @@ func getDomain(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, fmt.Sprintf("Error: %v", err.Error()), http.StatusBadRequest)
 		return
 	}
-
-	fmt.Fprint(w, "{\"result\":\"ok\"}\n")
 }
 
 func updateTranslation(w http.ResponseWriter, req *http.Request) {
@@ -127,8 +125,9 @@ func updateTranslation(w http.ResponseWriter, req *http.Request) {
 	err = ds.UpdateTranslation(dName, sName, lang, content.Content)
 	if err != nil {
 		http.Error(w, "Error: %v", http.StatusInternalServerError)
+		return
 	}
-	return
+	w.Write([]byte("{\"result\":\"ok\"}\n"))
 }
 
 func main() {
