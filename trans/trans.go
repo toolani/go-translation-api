@@ -10,14 +10,12 @@ type Domain interface {
 // A translatable string
 type String interface {
 	Name() string
-	SetName(string)
 	Translations() map[Language]Translation
 }
 
 // A translation of a string
 type Translation interface {
 	Content() string
-	SetContent(string)
 }
 
 type Language struct {

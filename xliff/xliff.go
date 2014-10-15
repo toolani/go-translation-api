@@ -64,23 +64,17 @@ type XliffString struct {
 	Source           string `xml:"source"`
 }
 
-func (xs *XliffString) Name() string {
+func (xs XliffString) Name() string {
 	return xs.TransUnitName
 }
-func (xs *XliffString) SetName(name string) {
-	xs.TransUnitName = name
-}
-func (xs *XliffString) Translations() map[trans.Language]trans.Translation {
+func (xs XliffString) Translations() map[trans.Language]trans.Translation {
 	ts := make(map[trans.Language]trans.Translation)
 	ts[*xs.language] = xs
 
 	return ts
 }
-func (xs *XliffString) Content() string {
+func (xs XliffString) Content() string {
 	return xs.TransUnitContent
-}
-func (xs *XliffString) SetContent(content string) {
-	xs.TransUnitContent = content
 }
 
 func infoFromFilename(filename string) (name string, expectLang string, err error) {

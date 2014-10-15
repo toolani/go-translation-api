@@ -96,13 +96,10 @@ type String struct {
 	translations map[trans.Language]trans.Translation
 }
 
-func (s *String) Name() string {
+func (s String) Name() string {
 	return s.name
 }
-func (s *String) SetName(name string) {
-	s.name = name
-}
-func (s *String) Translations() map[trans.Language]trans.Translation {
+func (s String) Translations() map[trans.Language]trans.Translation {
 	return s.translations
 }
 
@@ -111,11 +108,8 @@ type Translation struct {
 	content string
 }
 
-func (t *Translation) Content() string {
+func (t Translation) Content() string {
 	return t.content
-}
-func (t *Translation) SetContent(content string) {
-	t.content = content
 }
 
 func (ds *DataStore) getLanguage(code string) (l trans.Language, err error) {
