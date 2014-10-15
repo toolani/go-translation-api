@@ -90,6 +90,18 @@ func getDomainHandler(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func exportDomainHandler(w http.ResponseWriter, r *http.Request) {
+	name := mux.Vars(r)["name"]
+
+	err := ds.ExportDomain(name, "/Users/pthompson/temp/xliff")
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error: %v", err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	w.Write([]byte("{\"result\":\"ok\"}\n"))
+}
+
 func updateTranslationHandler(w http.ResponseWriter, req *http.Request) {
 	dName := mux.Vars(req)["domain"]
 	sName := mux.Vars(req)["string"]
@@ -129,6 +141,7 @@ func main() {
 
 	domain := r.PathPrefix("/domains/{name}/").Subrouter()
 	domain.Methods("GET").Handler(setJsonHeaders(http.HandlerFunc(getDomainHandler)))
+	domain.Methods("POST").Path("/export").Handler(setJsonHeaders(http.HandlerFunc(exportDomainHandler)))
 
 	translation := r.PathPrefix("/domains/{domain}/strings/{string}/translations/{lang}")
 	translation.Methods("PUT").Handler(setJsonHeaders(http.HandlerFunc(updateTranslationHandler)))

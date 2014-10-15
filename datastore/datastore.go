@@ -369,3 +369,12 @@ func (ds *DataStore) ImportDir(dir string, notify chan string) (count int, err e
 
 	return len(files), nil
 }
+
+func (ds *DataStore) ExportDomain(name, dir string) (err error) {
+	d, err := ds.GetFullDomain(name)
+	if err != nil {
+		return err
+	}
+
+	return xliff.Export(d, trans.Language{Id: 7, Code: "en", Name: "English"}, dir)
+}

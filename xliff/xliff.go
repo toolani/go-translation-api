@@ -1,27 +1,31 @@
 package xliff
 
 import (
+	"crypto/sha1"
 	"encoding/xml"
 	"errors"
 	"fmt"
 	"github.com/petert82/go-translation-api/trans"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type Xliff struct {
-	XMLName xml.Name  `xml:"xliff"`
-	File    XliffFile `xml:"file"`
-	Version string    `xml:"version,attr"`
+	XMLName   xml.Name  `xml:"xliff"`
+	Namespace string    `xml:"xmlns,attr"`
+	Version   string    `xml:"version,attr"`
+	File      XliffFile `xml:"file"`
 }
 
 type XliffFile struct {
-	XliffDomain
 	Date     string      `xml:"date,attr"`
 	DataType string      `xml:"datatype,attr"`
 	Original string      `xml:"original,attr"`
 	Header   XliffHeader `xml:"header"`
+	XliffDomain
 }
 
 type XliffHeader struct {
@@ -59,9 +63,10 @@ func (xd XliffDomain) Strings() []trans.String {
 
 type XliffString struct {
 	language         *trans.Language
+	Hash             string `xml:"id,attr"`
 	TransUnitName    string `xml:"resname,attr"`
-	TransUnitContent string `xml:"target"`
 	Source           string `xml:"source"`
+	TransUnitContent string `xml:"target"`
 }
 
 func (xs XliffString) Name() string {
@@ -84,6 +89,33 @@ func infoFromFilename(filename string) (name string, expectLang string, err erro
 	}
 
 	return parts[0], parts[1], nil
+}
+
+func hash(input string) (hash string) {
+	h := sha1.New()
+	h.Write([]byte(input))
+	sum := h.Sum(nil)
+
+	return fmt.Sprintf("%x", sum)
+}
+
+func New(name, sourceLang, targetLang string) (xliff *Xliff) {
+	xliff = &Xliff{Namespace: "urn:oasis:names:tc:xliff:document:1.2", Version: "1.2"}
+
+	xliff.File.Date = "2014-10-15T16:00:00Z"
+	xliff.File.Date = time.Now().Format(time.RFC3339)
+	xliff.File.DataType = "plaintext"
+	xliff.File.Original = "not.available"
+
+	xliff.File.Header.Tool.Id = "go-translation-api"
+	xliff.File.Header.Tool.Name = "go-translation-api"
+	xliff.File.Header.Tool.Version = "1.0.0-alpha"
+
+	xliff.File.XliffDomain.name = name
+	xliff.File.XliffDomain.SourceLang = sourceLang
+	xliff.File.XliffDomain.TargetLang = targetLang
+
+	return xliff
 }
 
 // Creates a new Xliff from the file at the given path
@@ -119,4 +151,49 @@ func NewFromFile(file string) (xliff *Xliff, err error) {
 
 		return xliff, nil
 	}
+}
+
+func Export(source trans.Domain, sourceLang trans.Language, dir string) (err error) {
+
+	xliffs := make(map[trans.Language]*Xliff)
+
+	for _, s := range source.Strings() {
+		for l, t := range s.Translations() {
+			if _, ok := xliffs[l]; !ok {
+				xliffs[l] = New(source.Name(), sourceLang.Code, l.Code)
+			}
+			xliff := xliffs[l]
+
+			xs := &XliffString{
+				language:         &trans.Language{Id: l.Id, Code: l.Code, Name: l.Name},
+				Hash:             hash(s.Name()),
+				TransUnitName:    s.Name(),
+				TransUnitContent: t.Content(),
+				Source:           s.Name(),
+			}
+			xliff.File.XliffDomain.TransUnits = append(xliff.File.XliffDomain.TransUnits, xs)
+			xliffs[l] = xliff
+		}
+	}
+
+	for _, xliff := range xliffs {
+		fileName := fmt.Sprintf("%v.%v.xliff", xliff.File.XliffDomain.name, xliff.File.XliffDomain.TargetLang)
+		f, err := os.Create(filepath.Join(dir, fileName))
+		if err != nil {
+			return err
+		}
+
+		_, err = f.WriteString("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n")
+		if err != nil {
+			return err
+		}
+		enc := xml.NewEncoder(f)
+		enc.Indent("", "  ")
+		if err = enc.Encode(xliff); err != nil {
+			return err
+		}
+		f.Close()
+	}
+
+	return nil
 }
