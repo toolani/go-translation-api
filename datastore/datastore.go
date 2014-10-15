@@ -257,13 +257,10 @@ func (ds *DataStore) GetFullDomain(name string) (d trans.Domain, err error) {
 		return d, err
 	}
 
-	dom := Domain{name: "", strings: make([]trans.String, 0)}
+	dom := Domain{name: name, strings: make([]trans.String, 0)}
 	strings := make(map[string]String)
 
 	for _, r := range rows {
-		if dom.name == "" {
-			dom.SetName(r.Name)
-		}
 		l := trans.Language{Id: r.LanguageId, Code: r.Code}
 		t := Translation{id: r.TranslationId, content: r.Content}
 		if s, ok := strings[r.Name]; ok == true {
