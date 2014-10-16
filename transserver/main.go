@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
@@ -139,13 +140,15 @@ func main() {
 
 	r := mux.NewRouter().StrictSlash(true)
 
-	domain := r.PathPrefix("/domains/{name}/").Subrouter()
-	domain.Methods("GET").Handler(setJsonHeaders(http.HandlerFunc(getDomainHandler)))
-	domain.Methods("POST").Path("/export").Handler(setJsonHeaders(http.HandlerFunc(exportDomainHandler)))
+	domain := r.PathPrefix("/domains/{name}").Subrouter()
+	domain.Methods("GET").HandlerFunc(getDomainHandler)
+	domain.Methods("POST").Path("/export").HandlerFunc(exportDomainHandler)
 
 	translation := r.PathPrefix("/domains/{domain}/strings/{string}/translations/{lang}")
-	translation.Methods("PUT").Handler(setJsonHeaders(http.HandlerFunc(updateTranslationHandler)))
+	translation.Methods("PUT").HandlerFunc(updateTranslationHandler)
+
+	rWithMiddleWares := handlers.CombinedLoggingHandler(os.Stdout, setJsonHeaders(r))
 
 	fmt.Printf("Listening on port %v\n", port)
-	http.ListenAndServe(fmt.Sprintf(":%v", port), r)
+	http.ListenAndServe(fmt.Sprintf(":%v", port), rWithMiddleWares)
 }
