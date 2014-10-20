@@ -243,6 +243,29 @@ func (ds *DataStore) updateTranslation(t trans.Translation, transId int64, langI
 	return err
 }
 
+// Gets all available domains. Only populates name of each returned domain
+func (ds *DataStore) GetDomainList() (domains []trans.Domain, err error) {
+	start := time.Now()
+	defer func() { ds.Stats.Log("domain", "get", time.Since(start)) }()
+
+	rows, err := ds.db.Query("SELECT name FROM domain ORDER BY name")
+	if err != nil {
+		return domains, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var name string
+		err = rows.Scan(&name)
+		if err != nil {
+			return domains, err
+		}
+		domains = append(domains, &Domain{name: name})
+	}
+
+	return domains, nil
+}
+
 func (ds *DataStore) GetFullDomain(name string) (d trans.Domain, err error) {
 	start := time.Now()
 	defer func() { ds.Stats.Log("domain", "get", time.Since(start)) }()

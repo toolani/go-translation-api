@@ -75,6 +75,28 @@ func setJsonHeaders(h http.Handler) http.Handler {
 	})
 }
 
+func getDomainsHandler(w http.ResponseWriter, r *http.Request) {
+	ds, err := ds.GetDomainList()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error: %v", err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	var output struct {
+		Domains []string `json:"domains"`
+	}
+	output.Domains = make([]string, len(ds))
+	for i, d := range ds {
+		output.Domains[i] = d.Name()
+	}
+
+	enc := json.NewEncoder(w)
+	if err := enc.Encode(output); err != nil {
+		http.Error(w, fmt.Sprintf("Error: %v", err.Error()), http.StatusBadRequest)
+		return
+	}
+}
+
 func getDomainHandler(w http.ResponseWriter, req *http.Request) {
 	name := mux.Vars(req)["name"]
 
@@ -139,6 +161,9 @@ func main() {
 	check(err)
 
 	r := mux.NewRouter().StrictSlash(true)
+
+	domains := r.Path("/domains").Subrouter()
+	domains.Methods("GET").HandlerFunc(getDomainsHandler)
 
 	domain := r.PathPrefix("/domains/{name}").Subrouter()
 	domain.Methods("GET").HandlerFunc(getDomainHandler)
