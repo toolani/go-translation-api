@@ -62,7 +62,7 @@ func check(e error) {
 
 func parseArgs(args []string) (dbPath string, err error) {
 	if len(args) < 1 {
-		return "", errors.New("Usage:\n  transimporter [-p <port>] DB_PATH IMPORT_PATH")
+		return "", errors.New("Usage:\n  transserver [-p <port>] DB_PATH")
 	}
 
 	return args[0], nil
