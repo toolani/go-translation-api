@@ -244,6 +244,9 @@ func (ds *DataStore) updateTranslation(t trans.Translation, transId int64, langI
 }
 
 func (ds *DataStore) GetFullDomain(name string) (d trans.Domain, err error) {
+	start := time.Now()
+	defer func() { ds.Stats.Log("domain", "get", time.Since(start)) }()
+
 	var rows []struct {
 		StringId      int64  `db:"stringId"`
 		Name          string `db:"name"`
@@ -252,28 +255,28 @@ func (ds *DataStore) GetFullDomain(name string) (d trans.Domain, err error) {
 		TranslationId int64  `db:"translationId"`
 		Content       string `db:"content"`
 	}
-	err = ds.db.Select(&rows, "SELECT string.id AS stringId, string.name, translation.language_id AS languageId, language.code, translation.id AS translationId, translation.content FROM string INNER JOIN translation ON string.id = translation.string_id INNER JOIN language ON translation.language_id = language.id WHERE string.domain_id = (SELECT id FROM domain where domain.name = ?)", name)
+	err = ds.db.Select(&rows, "SELECT string.id AS stringId, string.name, translation.language_id AS languageId, language.code, translation.id AS translationId, translation.content FROM string INNER JOIN translation ON string.id = translation.string_id INNER JOIN language ON translation.language_id = language.id WHERE string.domain_id = (SELECT id FROM domain where domain.name = ?) ORDER BY string.name", name)
 	if err != nil {
 		return d, err
 	}
 
 	dom := Domain{name: name, strings: make([]trans.String, 0)}
-	strings := make(map[string]String)
+	stringIndex := make(map[string]int64)
+	var i int64 = 0
 
 	for _, r := range rows {
 		l := trans.Language{Id: r.LanguageId, Code: r.Code}
 		t := Translation{id: r.TranslationId, content: r.Content}
-		if s, ok := strings[r.Name]; ok == true {
-			s.translations[l] = &t
-		} else {
-			s := String{id: r.StringId, name: r.Name, translations: make(map[trans.Language]trans.Translation)}
-			s.translations[l] = &t
-			strings[r.Name] = s
-		}
-	}
 
-	for _, s := range strings {
-		dom.strings = append(dom.strings, &String{id: s.id, name: s.name, translations: s.translations})
+		if sIdx, ok := stringIndex[r.Name]; ok == true {
+			dom.strings[sIdx].(*String).translations[l] = &t
+		} else {
+			s := &String{id: r.StringId, name: r.Name, translations: make(map[trans.Language]trans.Translation)}
+			s.translations[l] = &t
+			dom.strings = append(dom.strings, s)
+			stringIndex[r.Name] = i
+			i++
+		}
 	}
 
 	return &dom, nil
