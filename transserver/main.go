@@ -83,6 +83,7 @@ func setJsonHeaders(h http.Handler) http.Handler {
 	})
 }
 
+// Gets list of available languages
 func getLanguagesHandler(w http.ResponseWriter, r *http.Request) {
 	ls, err := ds.GetLanguageList()
 	if checkHttp(err, w) {
@@ -93,10 +94,10 @@ func getLanguagesHandler(w http.ResponseWriter, r *http.Request) {
 	checkHttp(enc.Encode(ls), w)
 }
 
+// Gets list of available translation domain names
 func getDomainsHandler(w http.ResponseWriter, r *http.Request) {
 	ds, err := ds.GetDomainList()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Error: %v", err.Error()), http.StatusInternalServerError)
+	if checkHttp(err, w) {
 		return
 	}
 
@@ -109,50 +110,45 @@ func getDomainsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	enc := json.NewEncoder(w)
-	if err := enc.Encode(output); err != nil {
-		http.Error(w, fmt.Sprintf("Error: %v", err.Error()), http.StatusInternalServerError)
-		return
-	}
+	checkHttp(enc.Encode(output), w)
 }
 
-func getDomainHandler(w http.ResponseWriter, req *http.Request) {
-	name := mux.Vars(req)["name"]
+// Get a domain and all its strings & translations
+func getDomainHandler(w http.ResponseWriter, r *http.Request) {
+	name := mux.Vars(r)["name"]
 
 	dom, err := ds.GetFullDomain(name)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Error: %v", err.Error()), http.StatusInternalServerError)
+	if checkHttp(err, w) {
 		return
 	}
 
 	enc := json.NewEncoder(w)
-	if err := enc.Encode(NewDomain(dom)); err != nil {
-		http.Error(w, fmt.Sprintf("Error: %v", err.Error()), http.StatusInternalServerError)
-		return
-	}
+	checkHttp(enc.Encode(NewDomain(dom)), w)
 }
 
+// Export a domain to XLIFF files on disk
 func exportDomainHandler(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
 
 	err := ds.ExportDomain(name, "/Users/pthompson/temp/xliff")
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Error: %v", err.Error()), http.StatusInternalServerError)
+	if checkHttp(err, w) {
 		return
 	}
 
 	w.Write([]byte("{\"result\":\"ok\"}\n"))
 }
 
-func updateTranslationHandler(w http.ResponseWriter, req *http.Request) {
-	dName := mux.Vars(req)["domain"]
-	sName := mux.Vars(req)["string"]
-	lang := mux.Vars(req)["lang"]
+// Update a translation with new content
+func updateTranslationHandler(w http.ResponseWriter, r *http.Request) {
+	dName := mux.Vars(r)["domain"]
+	sName := mux.Vars(r)["string"]
+	lang := mux.Vars(r)["lang"]
 
 	var content struct {
 		Content string `json:"content"`
 	}
 
-	decoder := json.NewDecoder(req.Body)
+	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&content)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Could not decode request (%v)", err.Error()), http.StatusBadRequest)
@@ -160,10 +156,10 @@ func updateTranslationHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	err = ds.UpdateTranslation(dName, sName, lang, content.Content)
-	if err != nil {
-		http.Error(w, "Error: %v", http.StatusInternalServerError)
+	if checkHttp(err, w) {
 		return
 	}
+
 	w.Write([]byte("{\"result\":\"ok\"}\n"))
 }
 
