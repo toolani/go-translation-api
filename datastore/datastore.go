@@ -243,6 +243,16 @@ func (ds *DataStore) updateTranslation(t trans.Translation, transId int64, langI
 	return err
 }
 
+// Gets all available languages
+func (ds *DataStore) GetLanguageList() (languages []trans.Language, err error) {
+	start := time.Now()
+	defer func() { ds.Stats.Log("language", "get", time.Since(start)) }()
+
+	err = ds.db.Select(&languages, "SELECT id, code, name FROM language ORDER BY code")
+
+	return languages, err
+}
+
 // Gets all available domains. Only populates name of each returned domain
 func (ds *DataStore) GetDomainList() (domains []trans.Domain, err error) {
 	start := time.Now()

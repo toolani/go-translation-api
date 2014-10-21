@@ -19,7 +19,7 @@ type Translation interface {
 }
 
 type Language struct {
-	Id   int64
-	Code string // language / locale code
-	Name string
+	Id   int64  `json:"-"`
+	Code string `json:"code"` // language / locale code
+	Name string `json:"name"`
 }

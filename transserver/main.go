@@ -60,6 +60,14 @@ func check(e error) {
 	}
 }
 
+func checkHttp(e error, w http.ResponseWriter) (hadError bool) {
+	if e != nil {
+		http.Error(w, fmt.Sprintf("Error: %v", e.Error()), http.StatusInternalServerError)
+		return true
+	}
+	return false
+}
+
 func parseArgs(args []string) (dbPath string, err error) {
 	if len(args) < 1 {
 		return "", errors.New("Usage:\n  transserver [-p <port>] DB_PATH")
@@ -73,6 +81,16 @@ func setJsonHeaders(h http.Handler) http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		h.ServeHTTP(w, r)
 	})
+}
+
+func getLanguagesHandler(w http.ResponseWriter, r *http.Request) {
+	ls, err := ds.GetLanguageList()
+	if checkHttp(err, w) {
+		return
+	}
+
+	enc := json.NewEncoder(w)
+	checkHttp(enc.Encode(ls), w)
 }
 
 func getDomainsHandler(w http.ResponseWriter, r *http.Request) {
@@ -92,7 +110,7 @@ func getDomainsHandler(w http.ResponseWriter, r *http.Request) {
 
 	enc := json.NewEncoder(w)
 	if err := enc.Encode(output); err != nil {
-		http.Error(w, fmt.Sprintf("Error: %v", err.Error()), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("Error: %v", err.Error()), http.StatusInternalServerError)
 		return
 	}
 }
@@ -102,13 +120,13 @@ func getDomainHandler(w http.ResponseWriter, req *http.Request) {
 
 	dom, err := ds.GetFullDomain(name)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Error: %v", err.Error()), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("Error: %v", err.Error()), http.StatusInternalServerError)
 		return
 	}
 
 	enc := json.NewEncoder(w)
 	if err := enc.Encode(NewDomain(dom)); err != nil {
-		http.Error(w, fmt.Sprintf("Error: %v", err.Error()), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("Error: %v", err.Error()), http.StatusInternalServerError)
 		return
 	}
 }
@@ -161,6 +179,9 @@ func main() {
 	check(err)
 
 	r := mux.NewRouter().StrictSlash(true)
+
+	languages := r.Path("/languages").Subrouter()
+	languages.Methods("GET").HandlerFunc(getLanguagesHandler)
 
 	domains := r.Path("/domains").Subrouter()
 	domains.Methods("GET").HandlerFunc(getDomainsHandler)
