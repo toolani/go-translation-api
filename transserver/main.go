@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -60,12 +61,16 @@ func check(e error) {
 	}
 }
 
-func checkHttp(e error, w http.ResponseWriter) (hadError bool) {
+func checkHttpWithStatus(e error, w http.ResponseWriter, status int) (hadError bool) {
 	if e != nil {
-		http.Error(w, fmt.Sprintf("Error: %v", e.Error()), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Error: %v", e.Error()), status)
 		return true
 	}
 	return false
+}
+
+func checkHttp(e error, w http.ResponseWriter) (hadError bool) {
+	return checkHttpWithStatus(e, w, http.StatusInternalServerError)
 }
 
 func parseArgs(args []string) (dbPath string, err error) {
@@ -138,8 +143,8 @@ func exportDomainHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("{\"result\":\"ok\"}\n"))
 }
 
-// Update a translation with new content
-func updateTranslationHandler(w http.ResponseWriter, r *http.Request) {
+// Update a translation with new content (or create it if we have a POST request)
+func createOrUpdateTranslationHandler(w http.ResponseWriter, r *http.Request) {
 	dName := mux.Vars(r)["domain"]
 	sName := mux.Vars(r)["string"]
 	lang := mux.Vars(r)["lang"]
@@ -155,8 +160,17 @@ func updateTranslationHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = ds.UpdateTranslation(dName, sName, lang, content.Content)
-	if checkHttp(err, w) {
+	allowCreate := false
+	if r.Method == "POST" {
+		allowCreate = true
+	}
+
+	err = ds.CreateOrUpdateTranslation(dName, sName, lang, content.Content, allowCreate)
+	status := http.StatusInternalServerError
+	if err == sql.ErrNoRows {
+		status = http.StatusNotFound
+	}
+	if checkHttpWithStatus(err, w, status) {
 		return
 	}
 
@@ -187,7 +201,7 @@ func main() {
 	domain.Methods("POST").Path("/export").HandlerFunc(exportDomainHandler)
 
 	translation := r.PathPrefix("/domains/{domain}/strings/{string}/translations/{lang}")
-	translation.Methods("PUT").HandlerFunc(updateTranslationHandler)
+	translation.Methods("POST", "PUT").HandlerFunc(createOrUpdateTranslationHandler)
 
 	rWithMiddleWares := handlers.CombinedLoggingHandler(os.Stdout, setJsonHeaders(r))
 

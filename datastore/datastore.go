@@ -315,13 +315,23 @@ func (ds *DataStore) GetFullDomain(name string) (d trans.Domain, err error) {
 	return &dom, nil
 }
 
-func (ds *DataStore) UpdateTranslation(domainName, stringName, langCode, content string) (err error) {
+// Updates the translation of the string with the given name to have the given content.
+// When allowCreate is false, will return an error if the string does not exist or is not yet
+// translated into the given language.
+// If allowCreate is true, both the string and translation content for the given language will be
+// created if either does not exist.
+func (ds *DataStore) CreateOrUpdateTranslation(domainName, stringName, langCode, content string, allowCreate bool) (err error) {
 	domId, err := ds.getDomainId(domainName)
 	if err != nil {
 		return err
 	}
 
-	stringId, err := ds.getStringId(stringName, domId)
+	var stringId int64
+	if allowCreate {
+		stringId, err = ds.createOrGetString(stringName, domId)
+	} else {
+		stringId, err = ds.getStringId(stringName, domId)
+	}
 	if err != nil {
 		return err
 	}
@@ -333,11 +343,13 @@ func (ds *DataStore) UpdateTranslation(domainName, stringName, langCode, content
 
 	t := &Translation{content: content}
 	transId, err := ds.getTranslationId(t, lang.Id, stringId, domId)
-	if err != nil {
+	if err != nil && !allowCreate {
 		return err
+	} else if err == sql.ErrNoRows && allowCreate {
+		err = ds.insertTranslation(t, lang.Id, stringId, domId)
+	} else if err == nil {
+		err = ds.updateTranslation(t, transId, lang.Id, stringId, domId)
 	}
-
-	err = ds.updateTranslation(t, transId, lang.Id, stringId, domId)
 
 	return err
 }
