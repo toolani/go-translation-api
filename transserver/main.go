@@ -11,47 +11,20 @@ import (
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/petert82/go-translation-api/datastore"
-	"github.com/petert82/go-translation-api/trans"
 	"net/http"
 	"os"
 )
 
-type Domain struct {
-	Name    string   `json:"name"`
-	Strings []String `json:"strings"`
-}
-
-func NewDomain(dd trans.Domain) (d *Domain) {
-	ds := dd.Strings()
-	d = &Domain{Name: dd.Name(), Strings: make([]String, len(ds))}
-
-	for i, s := range ds {
-		ns := String{Name: s.Name(), Translations: make(map[string]Translation)}
-		for l, t := range s.Translations() {
-			ns.Translations[l.Code] = Translation{Content: t.Content()}
-		}
-		d.Strings[i] = ns
-	}
-
-	return d
-}
-
-type String struct {
-	Name         string                 `json:"name"`
-	Translations map[string]Translation `json:"translations"`
-}
-
-type Translation struct {
-	Content string `json:"content"`
-}
-
 var (
-	ds   *datastore.DataStore
-	port int
+	ds        *datastore.DataStore
+	port      int
+	export    chan string
+	exportDir string
 )
 
 func init() {
 	flag.IntVar(&port, "p", 8181, "Port to start server on")
+	export = make(chan string, 100)
 }
 
 func check(e error) {
@@ -73,12 +46,12 @@ func checkHttp(e error, w http.ResponseWriter) (hadError bool) {
 	return checkHttpWithStatus(e, w, http.StatusInternalServerError)
 }
 
-func parseArgs(args []string) (dbPath string, err error) {
-	if len(args) < 1 {
-		return "", errors.New("Usage:\n  transserver [-p <port>] DB_PATH")
+func parseArgs(args []string) (dbPath string, exportDir string, err error) {
+	if len(args) < 2 {
+		return "", "", errors.New("Usage:\n  transserver [-p <port>] DB_PATH EXPORT_PATH")
 	}
 
-	return args[0], nil
+	return args[0], args[1], nil
 }
 
 func setJsonHeaders(h http.Handler) http.Handler {
@@ -135,7 +108,7 @@ func getDomainHandler(w http.ResponseWriter, r *http.Request) {
 func exportDomainHandler(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
 
-	err := ds.ExportDomain(name, "/Users/pthompson/temp/xliff")
+	err := ds.ExportDomain(name, exportDir)
 	if checkHttp(err, w) {
 		return
 	}
@@ -175,11 +148,13 @@ func createOrUpdateTranslationHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write([]byte("{\"result\":\"ok\"}\n"))
+
+	export <- dName
 }
 
 func main() {
 	flag.Parse()
-	dbFile, err := parseArgs(flag.Args())
+	dbFile, exportDir, err := parseArgs(flag.Args())
 	check(err)
 
 	var db *sqlx.DB
@@ -187,6 +162,17 @@ func main() {
 	check(err)
 	ds, err = datastore.New(db)
 	check(err)
+
+	// Listen for domains to export to file
+	go func() {
+		for {
+			d := <-export
+			err := ds.ExportDomain(d, exportDir)
+			if err != nil {
+				fmt.Println(err)
+			}
+		}
+	}()
 
 	r := mux.NewRouter().StrictSlash(true)
 
