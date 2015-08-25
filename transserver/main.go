@@ -10,27 +10,30 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/petert82/go-translation-api/config"
 	"github.com/petert82/go-translation-api/datastore"
+	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 )
 
 var (
-	ds        *datastore.DataStore
-	port      int
-	export    chan string
-	exportDir string
+	configPath string
+	ds         *datastore.DataStore
+	export     chan string
+	exportDir  string
 )
 
 func init() {
-	flag.IntVar(&port, "p", 8181, "Port to start server on")
+	defaultConfigPath := filepath.FromSlash("./translation-api.toml")
+	flag.StringVar(&configPath, "config", defaultConfigPath, "Full `path` and file name to the config file")
 	export = make(chan string, 100)
 }
 
-func check(e error) {
-	if e != nil {
-		fmt.Println(e)
-		os.Exit(1)
+func checkFatal(err error, logger *log.Logger) {
+	if err != nil {
+		logger.Fatalln("Error:", err)
 	}
 }
 
@@ -153,21 +156,24 @@ func createOrUpdateTranslationHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	logger := log.New(os.Stderr, "", 0)
+
 	flag.Parse()
-	dbFile, exportDir, err := parseArgs(flag.Args())
-	check(err)
+
+	config, err := config.Load(configPath)
+	checkFatal(err, logger)
 
 	var db *sqlx.DB
-	db, err = sqlx.Connect("sqlite3", dbFile)
-	check(err)
+	db, err = sqlx.Connect(config.DB.Driver, config.DB.ConnectionString())
+	checkFatal(err, logger)
 	ds, err = datastore.New(db)
-	check(err)
+	checkFatal(err, logger)
 
 	// Listen for domains to export to file
 	go func() {
 		for {
 			d := <-export
-			err := ds.ExportDomain(d, exportDir)
+			err := ds.ExportDomain(d, config.XLIFF.ExportPath)
 			if err != nil {
 				fmt.Println(err)
 			}
@@ -191,6 +197,6 @@ func main() {
 
 	rWithMiddleWares := handlers.CombinedLoggingHandler(os.Stdout, setJsonHeaders(r))
 
-	fmt.Printf("Listening on port %v\n", port)
-	http.ListenAndServe(fmt.Sprintf(":%v", port), rWithMiddleWares)
+	fmt.Printf("Listening on port %v\n", config.Server.Port)
+	http.ListenAndServe(fmt.Sprintf(":%v", config.Server.Port), rWithMiddleWares)
 }

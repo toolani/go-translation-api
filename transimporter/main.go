@@ -1,34 +1,39 @@
 package main
 
 import (
-	"errors"
-	"fmt"
+	"flag"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/petert82/go-translation-api/config"
 	"github.com/petert82/go-translation-api/datastore"
+	"log"
 	"os"
+	"path/filepath"
 	"time"
 )
 
-func check(e error) {
-	if e != nil {
-		fmt.Println(e)
-		os.Exit(1)
-	}
+var configPath string
+
+func init() {
+	defaultConfigPath := filepath.FromSlash("./translation-api.toml")
+	flag.StringVar(&configPath, "config", defaultConfigPath, "Full `path` and file name to the config file")
 }
 
-func parseArgs(args []string) (dbPath string, importPath string, err error) {
-	if len(args) < 2 {
-		return "", "", errors.New("Usage:\n  transimporter DB_PATH IMPORT_PATH")
+func checkFatal(err error, logger *log.Logger) {
+	if err != nil {
+		logger.Fatalln("Error:", err)
 	}
-
-	return args[0], args[1], nil
 }
 
 func main() {
+	logger := log.New(os.Stderr, "", 0)
+
+	flag.Parse()
+
+	config, err := config.Load(configPath)
+	checkFatal(err, logger)
+
 	start := time.Now()
-	dbFile, importPath, err := parseArgs(os.Args[1:])
-	check(err)
 
 	results := make(chan string, 100)
 	done := make(chan bool, 1)
@@ -36,7 +41,7 @@ func main() {
 	go func() {
 		for {
 			imported := <-results
-			fmt.Println("Imported domain: ", imported)
+			logger.Println("Imported domain: ", imported)
 		}
 	}()
 
@@ -46,12 +51,12 @@ func main() {
 	)
 	go func() {
 		var db *sqlx.DB
-		db, err = sqlx.Connect("sqlite3", dbFile)
-		check(err)
+		db, err = sqlx.Connect(config.DB.Driver, config.DB.ConnectionString())
+		checkFatal(err, logger)
 		ds, err := datastore.New(db)
-		check(err)
-		count, err = ds.ImportDir(importPath, results)
-		check(err)
+		checkFatal(err, logger)
+		count, err = ds.ImportDir(config.XLIFF.ImportPath, results)
+		checkFatal(err, logger)
 
 		stats = ds.Stats
 
@@ -60,7 +65,7 @@ func main() {
 	<-done
 
 	elapsed := time.Since(start).Seconds()
-	fmt.Printf("Imported %v files in %fs\n\n", count, elapsed)
+	logger.Printf("Imported %v files in %fs\n\n", count, elapsed)
 
-	fmt.Println(stats)
+	logger.Println(stats)
 }
