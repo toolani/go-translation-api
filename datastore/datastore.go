@@ -5,13 +5,31 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jmoiron/sqlx"
+	"github.com/petert82/go-translation-api/config"
 	"github.com/petert82/go-translation-api/trans"
 	"github.com/petert82/go-translation-api/xliff"
 	"path/filepath"
 	"time"
 )
 
+// Adapter provides database-driver-specific query strings, etc.
+type Adapter interface {
+	PostCreate(*sqlx.DB) error
+	CreateDomainQuery() string
+	CreateStringQuery() string
+	CreateTranslationQuery() string
+	GetAllDomainsQuery() string
+	GetAllLanguagesQuery() string
+	GetSingleDomainQuery() string
+	GetSingleDomainIdQuery() string
+	GetSingleLanguageQuery() string
+	GetSingleStringIdQuery() string
+	GetSingleTranslationIdQuery() string
+	UpdateTranslationQuery() string
+}
+
 type DataStore struct {
+	adapter     Adapter
 	db          *sqlx.DB
 	domainCache map[string]int64
 	stringCache map[StringKey]int64
@@ -50,29 +68,41 @@ func (s Stats) String() (out string) {
 	return out
 }
 
-func New(db *sqlx.DB) (ds *DataStore, err error) {
+// Creates a new datastore using the given database connection. The driver parameter is used to
+// select the appropriate database adapter, and should be one of the config.DbDriver* constants.
+func New(db *sqlx.DB, driver string) (ds *DataStore, err error) {
+	adp, err := newAdapter(driver)
+	if err != nil {
+		return &DataStore{}, err
+	}
+
 	ds = &DataStore{
+		adapter:     adp,
 		db:          db,
 		domainCache: make(map[string]int64),
 		stringCache: make(map[StringKey]int64),
 		Stats:       make(map[StatKey]StatItem),
 	}
 
-	_, err = db.Exec("PRAGMA foreign_keys = ON")
+	err = ds.adapter.PostCreate(ds.db)
 	if err != nil {
 		return ds, err
 	}
-	// Faster than using default journal file
-	_, err = db.Exec("PRAGMA journal_mode = WAL")
-	if err != nil {
-		return ds, err
-	}
-	// Default (full) is slower
-	_, err = db.Exec("PRAGMA synchronous = NORMAL")
-	if err != nil {
-		return ds, err
-	}
+
 	return ds, nil
+}
+
+func newAdapter(driver string) (adp Adapter, err error) {
+	switch driver {
+	case config.DbDriverSqlite3:
+		adp = &Sqlite3Adapter{}
+	}
+
+	if adp == nil {
+		return nil, errors.New(fmt.Sprintf("no adapter available for database driver '%v'", driver))
+	}
+
+	return adp, nil
 }
 
 type Domain struct {
@@ -116,7 +146,7 @@ func (ds *DataStore) getLanguage(code string) (l trans.Language, err error) {
 	start := time.Now()
 	defer func() { ds.Stats.Log("language", "get", time.Since(start)) }()
 
-	err = ds.db.Get(&l, "SELECT id, name, code FROM language WHERE code=?", code)
+	err = ds.db.Get(&l, ds.adapter.GetSingleLanguageQuery(), code)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return l, errors.New(fmt.Sprintf("Language '%v' does not exist in database", code))
@@ -136,7 +166,7 @@ func (ds *DataStore) getDomainId(name string) (id int64, err error) {
 		return id, nil
 	}
 
-	row := ds.db.QueryRow("SELECT id FROM domain WHERE name=? ", name)
+	row := ds.db.QueryRow(ds.adapter.GetSingleDomainIdQuery(), name)
 	err = row.Scan(&id)
 	if err != nil {
 		return 0, err
@@ -150,7 +180,7 @@ func (ds *DataStore) createDomain(name string) (id int64, err error) {
 	start := time.Now()
 	defer func() { ds.Stats.Log("domain", "insert", time.Since(start)) }()
 
-	result, err := ds.db.Exec("INSERT INTO domain (name) VALUES (?)", name)
+	result, err := ds.db.Exec(ds.adapter.CreateDomainQuery(), name)
 	if err != nil {
 		return 0, nil
 	}
@@ -177,7 +207,7 @@ func (ds *DataStore) getStringId(name string, domainId int64) (id int64, err err
 	start := time.Now()
 	defer func() { ds.Stats.Log("string", "get", time.Since(start)) }()
 
-	row := ds.db.QueryRow("SELECT id FROM string WHERE name = ? AND domain_id = ?", name, domainId)
+	row := ds.db.QueryRow(ds.adapter.GetSingleStringIdQuery(), name, domainId)
 	err = row.Scan(&id)
 	if err != nil {
 		return 0, err
@@ -190,7 +220,7 @@ func (ds *DataStore) createString(name string, domainId int64) (id int64, err er
 	start := time.Now()
 	defer func() { ds.Stats.Log("string", "insert", time.Since(start)) }()
 
-	result, err := ds.db.Exec(`INSERT INTO string (name, domain_id) VALUES (?, ?)`, name, domainId)
+	result, err := ds.db.Exec(ds.adapter.CreateStringQuery(), name, domainId)
 	if err != nil {
 		return 0, err
 	}
@@ -216,7 +246,7 @@ func (ds *DataStore) getTranslationId(t trans.Translation, langId int64, stringI
 	start := time.Now()
 	defer func() { ds.Stats.Log("translation", "get", time.Since(start)) }()
 
-	row := ds.db.QueryRow("SELECT translation.id FROM string INNER JOIN translation ON string.id = translation.string_id WHERE string.id=? AND language_id=? AND domain_id=?", stringId, langId, domainId)
+	row := ds.db.QueryRow(ds.adapter.GetSingleTranslationIdQuery(), stringId, langId, domainId)
 	err = row.Scan(&id)
 	if err != nil {
 		return 0, err
@@ -229,7 +259,7 @@ func (ds *DataStore) insertTranslation(t trans.Translation, langId int64, string
 	start := time.Now()
 	defer func() { ds.Stats.Log("translation", "insert", time.Since(start)) }()
 
-	_, err = ds.db.Exec(`INSERT INTO translation (language_id, content, string_id) VALUES (?, ?, ?)`, langId, t.Content(), stringId)
+	_, err = ds.db.Exec(ds.adapter.CreateTranslationQuery(), langId, t.Content(), stringId)
 
 	return err
 }
@@ -238,7 +268,7 @@ func (ds *DataStore) updateTranslation(t trans.Translation, transId int64, langI
 	start := time.Now()
 	defer func() { ds.Stats.Log("translation", "update", time.Since(start)) }()
 
-	_, err = ds.db.Exec(`UPDATE translation SET language_id=?, content=?, string_id=? WHERE id=?`, langId, t.Content(), stringId, transId)
+	_, err = ds.db.Exec(ds.adapter.UpdateTranslationQuery(), langId, t.Content(), stringId, transId)
 
 	return err
 }
@@ -248,7 +278,7 @@ func (ds *DataStore) GetLanguageList() (languages []trans.Language, err error) {
 	start := time.Now()
 	defer func() { ds.Stats.Log("language", "get", time.Since(start)) }()
 
-	err = ds.db.Select(&languages, "SELECT id, code, name FROM language ORDER BY code")
+	err = ds.db.Select(&languages, ds.adapter.GetAllLanguagesQuery())
 
 	return languages, err
 }
@@ -258,7 +288,7 @@ func (ds *DataStore) GetDomainList() (domains []trans.Domain, err error) {
 	start := time.Now()
 	defer func() { ds.Stats.Log("domain", "get", time.Since(start)) }()
 
-	rows, err := ds.db.Query("SELECT name FROM domain ORDER BY name")
+	rows, err := ds.db.Query(ds.adapter.GetAllDomainsQuery())
 	if err != nil {
 		return domains, err
 	}
@@ -288,7 +318,7 @@ func (ds *DataStore) GetFullDomain(name string) (d trans.Domain, err error) {
 		TranslationId int64  `db:"translationId"`
 		Content       string `db:"content"`
 	}
-	err = ds.db.Select(&rows, "SELECT string.id AS stringId, string.name, translation.language_id AS languageId, language.code, translation.id AS translationId, translation.content FROM string INNER JOIN translation ON string.id = translation.string_id INNER JOIN language ON translation.language_id = language.id WHERE string.domain_id = (SELECT id FROM domain where domain.name = ?) ORDER BY string.name", name)
+	err = ds.db.Select(&rows, ds.adapter.GetSingleDomainQuery(), name)
 	if err != nil {
 		return d, err
 	}

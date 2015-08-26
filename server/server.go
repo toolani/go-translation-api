@@ -39,9 +39,9 @@ func checkHttp(e error, w http.ResponseWriter) (hadError bool) {
 }
 
 // Instantiates a datastore for a request using the given DB connection
-func handleWithDatastore(db *sqlx.DB, f func(http.ResponseWriter, *http.Request, *datastore.DataStore)) http.HandlerFunc {
+func handleWithDatastore(db *sqlx.DB, driver string, f func(http.ResponseWriter, *http.Request, *datastore.DataStore)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ds, err := datastore.New(db)
+		ds, err := datastore.New(db, driver)
 
 		if checkHttpWithStatus(err, w, http.StatusServiceUnavailable) {
 			return
@@ -158,7 +158,7 @@ func Serve(c config.Config) {
 
 	// Listen for domains to export to file
 	go func() {
-		ds, err := datastore.New(db)
+		ds, err := datastore.New(db, c.DB.Driver)
 		checkFatal(err)
 
 		for {
@@ -173,17 +173,17 @@ func Serve(c config.Config) {
 	r := mux.NewRouter().StrictSlash(true)
 
 	languages := r.Path("/languages").Subrouter()
-	languages.Methods("GET").HandlerFunc(handleWithDatastore(db, getLanguagesHandler))
+	languages.Methods("GET").HandlerFunc(handleWithDatastore(db, c.DB.Driver, getLanguagesHandler))
 
 	domains := r.Path("/domains").Subrouter()
-	domains.Methods("GET").HandlerFunc(handleWithDatastore(db, getDomainsHandler))
+	domains.Methods("GET").HandlerFunc(handleWithDatastore(db, c.DB.Driver, getDomainsHandler))
 
 	domain := r.PathPrefix("/domains/{name}").Subrouter()
-	domain.Methods("GET").HandlerFunc(handleWithDatastore(db, getDomainHandler))
-	domain.Methods("POST").Path("/export").HandlerFunc(handleWithDatastore(db, exportDomainHandler))
+	domain.Methods("GET").HandlerFunc(handleWithDatastore(db, c.DB.Driver, getDomainHandler))
+	domain.Methods("POST").Path("/export").HandlerFunc(handleWithDatastore(db, c.DB.Driver, exportDomainHandler))
 
 	translation := r.PathPrefix("/domains/{domain}/strings/{string}/translations/{lang}")
-	translation.Methods("POST", "PUT").HandlerFunc(handleWithDatastore(db, createOrUpdateTranslationHandler))
+	translation.Methods("POST", "PUT").HandlerFunc(handleWithDatastore(db, c.DB.Driver, createOrUpdateTranslationHandler))
 
 	rWithMiddleWares := handlers.CombinedLoggingHandler(os.Stdout, setJsonHeaders(r))
 

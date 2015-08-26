@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	dbDriverSqlite3 = "sqlite3"
+	DbDriverSqlite3 = "sqlite3"
 )
 
 // Config represents the parsed configuration for the translation API.
@@ -27,8 +27,8 @@ type Config struct {
 
 // valid checks if the Config is valid in its current state.
 func (c *Config) valid() error {
-	if c.DB.Driver != dbDriverSqlite3 {
-		return errors.New(fmt.Sprintf("config: invalid database.driver value. (Must be one of: '%v')", dbDriverSqlite3))
+	if c.DB.Driver != DbDriverSqlite3 {
+		return errors.New(fmt.Sprintf("config: invalid database.driver value. (Must be one of: '%v')", DbDriverSqlite3))
 	}
 	if len(c.DB.File) == 0 {
 		return errors.New("config: missing database.file value")

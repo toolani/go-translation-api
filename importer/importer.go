@@ -38,7 +38,7 @@ func Import(c config.Config) {
 		var db *sqlx.DB
 		db, err := sqlx.Connect(c.DB.Driver, c.DB.ConnectionString())
 		checkFatal(err)
-		ds, err := datastore.New(db)
+		ds, err := datastore.New(db, c.DB.Driver)
 		checkFatal(err)
 		count, err = ds.ImportDir(c.XLIFF.ImportPath, results)
 		checkFatal(err)
