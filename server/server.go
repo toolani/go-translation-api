@@ -15,7 +15,6 @@ import (
 )
 
 var (
-	ds        *datastore.DataStore
 	export    chan string
 	exportDir string
 )
@@ -39,6 +38,18 @@ func checkHttp(e error, w http.ResponseWriter) (hadError bool) {
 	return checkHttpWithStatus(e, w, http.StatusInternalServerError)
 }
 
+// Instantiates a datastore for a request using the given DB connection
+func handleWithDatastore(db *sqlx.DB, f func(http.ResponseWriter, *http.Request, *datastore.DataStore)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ds, err := datastore.New(db)
+
+		if checkHttpWithStatus(err, w, http.StatusServiceUnavailable) {
+			return
+		}
+		f(w, r, ds)
+	}
+}
+
 func setJsonHeaders(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -47,7 +58,7 @@ func setJsonHeaders(h http.Handler) http.Handler {
 }
 
 // Gets list of available languages
-func getLanguagesHandler(w http.ResponseWriter, r *http.Request) {
+func getLanguagesHandler(w http.ResponseWriter, r *http.Request, ds *datastore.DataStore) {
 	ls, err := ds.GetLanguageList()
 	if checkHttp(err, w) {
 		return
@@ -58,8 +69,8 @@ func getLanguagesHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Gets list of available translation domain names
-func getDomainsHandler(w http.ResponseWriter, r *http.Request) {
-	ds, err := ds.GetDomainList()
+func getDomainsHandler(w http.ResponseWriter, r *http.Request, ds *datastore.DataStore) {
+	doms, err := ds.GetDomainList()
 	if checkHttp(err, w) {
 		return
 	}
@@ -67,8 +78,8 @@ func getDomainsHandler(w http.ResponseWriter, r *http.Request) {
 	var output struct {
 		Domains []string `json:"domains"`
 	}
-	output.Domains = make([]string, len(ds))
-	for i, d := range ds {
+	output.Domains = make([]string, len(doms))
+	for i, d := range doms {
 		output.Domains[i] = d.Name()
 	}
 
@@ -77,7 +88,7 @@ func getDomainsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Get a domain and all its strings & translations
-func getDomainHandler(w http.ResponseWriter, r *http.Request) {
+func getDomainHandler(w http.ResponseWriter, r *http.Request, ds *datastore.DataStore) {
 	name := mux.Vars(r)["name"]
 
 	dom, err := ds.GetFullDomain(name)
@@ -90,7 +101,7 @@ func getDomainHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Export a domain to XLIFF files on disk
-func exportDomainHandler(w http.ResponseWriter, r *http.Request) {
+func exportDomainHandler(w http.ResponseWriter, r *http.Request, ds *datastore.DataStore) {
 	name := mux.Vars(r)["name"]
 
 	err := ds.ExportDomain(name, exportDir)
@@ -102,7 +113,7 @@ func exportDomainHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Update a translation with new content (or create it if we have a POST request)
-func createOrUpdateTranslationHandler(w http.ResponseWriter, r *http.Request) {
+func createOrUpdateTranslationHandler(w http.ResponseWriter, r *http.Request, ds *datastore.DataStore) {
 	dName := mux.Vars(r)["domain"]
 	sName := mux.Vars(r)["string"]
 	lang := mux.Vars(r)["lang"]
@@ -144,11 +155,12 @@ func Serve(c config.Config) {
 	var db *sqlx.DB
 	db, err := sqlx.Connect(c.DB.Driver, c.DB.ConnectionString())
 	checkFatal(err)
-	ds, err = datastore.New(db)
-	checkFatal(err)
 
 	// Listen for domains to export to file
 	go func() {
+		ds, err := datastore.New(db)
+		checkFatal(err)
+
 		for {
 			d := <-export
 			err := ds.ExportDomain(d, c.XLIFF.ExportPath)
@@ -161,17 +173,17 @@ func Serve(c config.Config) {
 	r := mux.NewRouter().StrictSlash(true)
 
 	languages := r.Path("/languages").Subrouter()
-	languages.Methods("GET").HandlerFunc(getLanguagesHandler)
+	languages.Methods("GET").HandlerFunc(handleWithDatastore(db, getLanguagesHandler))
 
 	domains := r.Path("/domains").Subrouter()
-	domains.Methods("GET").HandlerFunc(getDomainsHandler)
+	domains.Methods("GET").HandlerFunc(handleWithDatastore(db, getDomainsHandler))
 
 	domain := r.PathPrefix("/domains/{name}").Subrouter()
-	domain.Methods("GET").HandlerFunc(getDomainHandler)
-	domain.Methods("POST").Path("/export").HandlerFunc(exportDomainHandler)
+	domain.Methods("GET").HandlerFunc(handleWithDatastore(db, getDomainHandler))
+	domain.Methods("POST").Path("/export").HandlerFunc(handleWithDatastore(db, exportDomainHandler))
 
 	translation := r.PathPrefix("/domains/{domain}/strings/{string}/translations/{lang}")
-	translation.Methods("POST", "PUT").HandlerFunc(createOrUpdateTranslationHandler)
+	translation.Methods("POST", "PUT").HandlerFunc(handleWithDatastore(db, createOrUpdateTranslationHandler))
 
 	rWithMiddleWares := handlers.CombinedLoggingHandler(os.Stdout, setJsonHeaders(r))
 
