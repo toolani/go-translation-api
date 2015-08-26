@@ -3,7 +3,6 @@ package server
 import (
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -20,10 +19,6 @@ var (
 	export    chan string
 	exportDir string
 )
-
-func init() {
-	export = make(chan string, 100)
-}
 
 func checkFatal(err error) {
 	if err != nil {
@@ -42,14 +37,6 @@ func checkHttpWithStatus(e error, w http.ResponseWriter, status int) (hadError b
 
 func checkHttp(e error, w http.ResponseWriter) (hadError bool) {
 	return checkHttpWithStatus(e, w, http.StatusInternalServerError)
-}
-
-func parseArgs(args []string) (dbPath string, exportDir string, err error) {
-	if len(args) < 2 {
-		return "", "", errors.New("Usage:\n  transserver [-p <port>] DB_PATH EXPORT_PATH")
-	}
-
-	return args[0], args[1], nil
 }
 
 func setJsonHeaders(h http.Handler) http.Handler {
@@ -151,6 +138,9 @@ func createOrUpdateTranslationHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func Serve(c config.Config) {
+	exportDir = c.XLIFF.ExportPath
+	export = make(chan string, 100)
+
 	var db *sqlx.DB
 	db, err := sqlx.Connect(c.DB.Driver, c.DB.ConnectionString())
 	checkFatal(err)

@@ -155,8 +155,15 @@ func NewFromFile(file string) (xliff *Xliff, err error) {
 
 func Export(source trans.Domain, sourceLang trans.Language, dir string) (err error) {
 
+	// Create output directory
+	err = os.MkdirAll(dir, 0755)
+	if err != nil {
+		return err
+	}
+
 	xliffs := make(map[trans.Language]*Xliff)
 
+	// Create our set of xliffs
 	for _, s := range source.Strings() {
 		for l, t := range s.Translations() {
 			if _, ok := xliffs[l]; !ok {
@@ -176,6 +183,7 @@ func Export(source trans.Domain, sourceLang trans.Language, dir string) (err err
 		}
 	}
 
+	// Export each xliff to file
 	for _, xliff := range xliffs {
 		fileName := fmt.Sprintf("%v.%v.xliff", xliff.File.XliffDomain.name, xliff.File.XliffDomain.TargetLang)
 		f, err := os.Create(filepath.Join(dir, fileName))
