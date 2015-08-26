@@ -28,7 +28,22 @@ func checkFatal(err error) {
 
 func checkHttpWithStatus(e error, w http.ResponseWriter, status int) (hadError bool) {
 	if e != nil {
-		http.Error(w, fmt.Sprintf("Error: %v", e.Error()), status)
+		w.WriteHeader(status)
+
+		errMsg := e.Error()
+		// Don't expose the 'sql: no rows in result set' message to the user
+		if status == http.StatusNotFound && e == sql.ErrNoRows {
+			errMsg = "not found"
+		}
+
+		jsonErr := struct {
+			Error string `json:"error"`
+		}{
+			Error: errMsg,
+		}
+		enc := json.NewEncoder(w)
+		enc.Encode(jsonErr)
+
 		return true
 	}
 	return false
