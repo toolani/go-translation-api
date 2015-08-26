@@ -1,10 +1,9 @@
-package main
+package server
 
 import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -12,28 +11,24 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/petert82/go-translation-api/config"
 	"github.com/petert82/go-translation-api/datastore"
-	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 )
 
 var (
-	configPath string
-	ds         *datastore.DataStore
-	export     chan string
-	exportDir  string
+	ds        *datastore.DataStore
+	export    chan string
+	exportDir string
 )
 
 func init() {
-	defaultConfigPath := filepath.FromSlash("./translation-api.toml")
-	flag.StringVar(&configPath, "config", defaultConfigPath, "Full `path` and file name to the config file")
 	export = make(chan string, 100)
 }
 
-func checkFatal(err error, logger *log.Logger) {
+func checkFatal(err error) {
 	if err != nil {
-		logger.Fatalln("Error:", err)
+		fmt.Fprintln(os.Stderr, "Error:", err)
+		os.Exit(1)
 	}
 }
 
@@ -155,25 +150,18 @@ func createOrUpdateTranslationHandler(w http.ResponseWriter, r *http.Request) {
 	export <- dName
 }
 
-func main() {
-	logger := log.New(os.Stderr, "", 0)
-
-	flag.Parse()
-
-	config, err := config.Load(configPath)
-	checkFatal(err, logger)
-
+func Serve(c config.Config) {
 	var db *sqlx.DB
-	db, err = sqlx.Connect(config.DB.Driver, config.DB.ConnectionString())
-	checkFatal(err, logger)
+	db, err := sqlx.Connect(c.DB.Driver, c.DB.ConnectionString())
+	checkFatal(err)
 	ds, err = datastore.New(db)
-	checkFatal(err, logger)
+	checkFatal(err)
 
 	// Listen for domains to export to file
 	go func() {
 		for {
 			d := <-export
-			err := ds.ExportDomain(d, config.XLIFF.ExportPath)
+			err := ds.ExportDomain(d, c.XLIFF.ExportPath)
 			if err != nil {
 				fmt.Println(err)
 			}
@@ -197,6 +185,6 @@ func main() {
 
 	rWithMiddleWares := handlers.CombinedLoggingHandler(os.Stdout, setJsonHeaders(r))
 
-	fmt.Printf("Listening on port %v\n", config.Server.Port)
-	http.ListenAndServe(fmt.Sprintf(":%v", config.Server.Port), rWithMiddleWares)
+	fmt.Printf("Listening on port %v\n", c.Server.Port)
+	http.ListenAndServe(fmt.Sprintf(":%v", c.Server.Port), rWithMiddleWares)
 }

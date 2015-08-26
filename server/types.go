@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"github.com/petert82/go-translation-api/trans"
