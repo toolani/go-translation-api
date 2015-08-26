@@ -306,6 +306,8 @@ func (ds *DataStore) GetDomainList() (domains []trans.Domain, err error) {
 	return domains, nil
 }
 
+// Gets all data for the translation domain with the given name.
+// Returns sql.ErrNoRows when the given name cannot be found.
 func (ds *DataStore) GetFullDomain(name string) (d trans.Domain, err error) {
 	start := time.Now()
 	defer func() { ds.Stats.Log("domain", "get", time.Since(start)) }()
@@ -321,6 +323,10 @@ func (ds *DataStore) GetFullDomain(name string) (d trans.Domain, err error) {
 	err = ds.db.Select(&rows, ds.adapter.GetSingleDomainQuery(), name)
 	if err != nil {
 		return d, err
+	}
+
+	if len(rows) == 0 {
+		return d, sql.ErrNoRows
 	}
 
 	dom := Domain{name: name, strings: make([]trans.String, 0)}

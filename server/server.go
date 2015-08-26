@@ -35,7 +35,11 @@ func checkHttpWithStatus(e error, w http.ResponseWriter, status int) (hadError b
 }
 
 func checkHttp(e error, w http.ResponseWriter) (hadError bool) {
-	return checkHttpWithStatus(e, w, http.StatusInternalServerError)
+	status := http.StatusInternalServerError
+	if e == sql.ErrNoRows {
+		status = http.StatusNotFound
+	}
+	return checkHttpWithStatus(e, w, status)
 }
 
 // Instantiates a datastore for a request using the given DB connection
@@ -135,11 +139,7 @@ func createOrUpdateTranslationHandler(w http.ResponseWriter, r *http.Request, ds
 	}
 
 	err = ds.CreateOrUpdateTranslation(dName, sName, lang, content.Content, allowCreate)
-	status := http.StatusInternalServerError
-	if err == sql.ErrNoRows {
-		status = http.StatusNotFound
-	}
-	if checkHttpWithStatus(err, w, status) {
+	if checkHttp(err, w) {
 		return
 	}
 
