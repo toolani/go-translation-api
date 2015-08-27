@@ -9,9 +9,10 @@ same directory as its binary.
 The program must be run with a 'command' argument to indicate what you would like it to do.
 Available commands are:
 
-  - import: Imports translations from XLIFF files in the xliff 'import_path' given in the config file.
-  - serve: Starts an HTTP server providing a JSON API for accessing and modifying the translation data.
   - help: Prints usage instructions
+  - import: Imports translations from XLIFF files in the xliff 'import_path' given in the config file.
+  - init-db: Ensures that the database contains all necessary tables. Safe to be run multiple times.
+  - serve: Starts an HTTP server providing a JSON API for accessing and modifying the translation data.
 */
 package main
 
@@ -23,39 +24,15 @@ import (
 	"github.com/petert82/go-translation-api/server"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 var (
 	configPath string
 )
 
-const (
-	cmdMissing      = "missing"
-	cmdUnrecognised = "unrecognised"
-	cmdHelp         = "help"
-	cmdImport       = "import"
-	cmdServe        = "serve"
-)
-
 func init() {
 	defaultConfigPath := filepath.FromSlash("./translation-api.toml")
 	flag.StringVar(&configPath, "config", defaultConfigPath, "Full `path` and file name to the config file")
-}
-
-type Command interface {
-	Run(config.Config)
-}
-
-type CommandFunc func(config.Config)
-
-func (f CommandFunc) Run(c config.Config) {
-	f(c)
-}
-
-// Gets list of available commands
-func availableCommands() []string {
-	return []string{cmdImport, cmdServe, cmdHelp}
 }
 
 func checkFatal(err error) {
@@ -76,30 +53,13 @@ func parseArgs(args []string) (command string) {
 		return cmdHelp
 	case cmdImport:
 		return cmdImport
+	case cmdInitDb:
+		return cmdInitDb
 	case cmdServe:
 		return cmdServe
 	}
 
 	return cmdUnrecognised
-}
-
-// Prints a normal usage message.
-func printUsage(c config.Config) {
-	flag.PrintDefaults()
-}
-
-// Prints a usage message indicating that a command must be given.
-func printMissingCommandUsage(c config.Config) {
-	fmt.Fprintf(os.Stderr, "No command given. Command can be one of: %v\n\n", strings.Join(availableCommands(), ", "))
-	printUsage(c)
-}
-
-// Prints a usage message indicating that the given command was not recognised.
-func printUnrecognisedCommandUsage(cmd string) CommandFunc {
-	return func(c config.Config) {
-		fmt.Fprintf(os.Stderr, "Command '%v' not recognised. Command must be one of: %v\n\n", os.Args[1], strings.Join(availableCommands(), ", "))
-		printUsage(c)
-	}
 }
 
 func main() {
@@ -111,8 +71,12 @@ func main() {
 	switch command {
 	case cmdUnrecognised:
 		commandFunc = printUnrecognisedCommandUsage(command)
+	case cmdHelp:
+		commandFunc = CommandFunc(printUsage)
 	case cmdImport:
 		commandFunc = CommandFunc(importer.Import)
+	case cmdInitDb:
+		commandFunc = CommandFunc(initDb)
 	case cmdServe:
 		commandFunc = CommandFunc(server.Serve)
 	}

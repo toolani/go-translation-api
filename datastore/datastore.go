@@ -15,6 +15,8 @@ import (
 // Adapter provides database-driver-specific query strings, etc.
 type Adapter interface {
 	PostCreate(*sqlx.DB) error
+	EnsureVersionTableExists(*sqlx.DB) error
+	MigrateUp(*sqlx.DB) (int64, error)
 	CreateDomainQuery() string
 	CreateStringQuery() string
 	CreateTranslationQuery() string
@@ -271,6 +273,16 @@ func (ds *DataStore) updateTranslation(t trans.Translation, transId int64, langI
 	_, err = ds.db.Exec(ds.adapter.UpdateTranslationQuery(), langId, t.Content(), stringId, transId)
 
 	return err
+}
+
+// MigrateUp migrates to the latest available version of the database
+func (ds *DataStore) MigrateUp() (version int64, err error) {
+	err = ds.adapter.EnsureVersionTableExists(ds.db)
+	if err != nil {
+		return version, err
+	}
+
+	return ds.adapter.MigrateUp(ds.db)
 }
 
 // Gets all available languages
