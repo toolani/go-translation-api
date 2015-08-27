@@ -28,26 +28,51 @@ const (
 	cmdHelp         = "help"
 	cmdImport       = "import"
 	cmdInitDb       = "init-db"
+	cmdRemoveDb     = "remove-db"
 	cmdServe        = "serve"
 )
 
 // Gets list of available commands
 func availableCommands() []string {
-	return []string{cmdHelp, cmdImport, cmdInitDb, cmdServe}
+	return []string{cmdHelp, cmdImport, cmdInitDb, cmdRemoveDb, cmdServe}
+}
+
+func getDatastore(c config.Config) (ds *datastore.DataStore) {
+	var db *sqlx.DB
+	db, err := sqlx.Connect(c.DB.Driver, c.DB.ConnectionString())
+	checkFatal(err)
+	ds, err = datastore.New(db, c.DB.Driver)
+	checkFatal(err)
+
+	return ds
 }
 
 // initDb initializes the database with all necessary tables.
 func initDb(c config.Config) {
-	var db *sqlx.DB
-	db, err := sqlx.Connect(c.DB.Driver, c.DB.ConnectionString())
-	checkFatal(err)
-	ds, err := datastore.New(db, c.DB.Driver)
-	checkFatal(err)
+	ds := getDatastore(c)
 
 	dbVersion, err := ds.MigrateUp()
 	if err != nil {
 		fmt.Println(err)
 		checkFatal(errors.New(fmt.Sprintf("Could complete database migration, last applied version was %v", dbVersion)))
+	}
+
+	fmt.Println("Successfully migrated the database to version", dbVersion)
+}
+
+// printMustForceToRemoveDb prints usage for the remove-db command
+func printMustForceToRemoveDb(c config.Config) {
+	fmt.Fprintln(os.Stderr, "The remove-db command requires the '--force' flag")
+}
+
+// removeDb removes any tables added by initDb
+func removeDb(c config.Config) {
+	ds := getDatastore(c)
+
+	dbVersion, err := ds.MigrateDown()
+	if err != nil {
+		fmt.Println(err)
+		checkFatal(errors.New(fmt.Sprintf("Could complete database removal, last applied version was %v", dbVersion)))
 	}
 
 	fmt.Println("Successfully migrated the database to version", dbVersion)

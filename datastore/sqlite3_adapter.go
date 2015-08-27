@@ -97,9 +97,9 @@ func (s Sqlite3Adapter) MigrateUp(db *sqlx.DB) (version int64, err error) {
 	}
 
 	for i, query := range up {
-		v := int64(i + 1)
-		if v <= startVer {
-			version = v
+		migTo := int64(i + 1)
+		if migTo <= startVer {
+			version = migTo
 			continue
 		}
 
@@ -108,12 +108,45 @@ func (s Sqlite3Adapter) MigrateUp(db *sqlx.DB) (version int64, err error) {
 			return version, err
 		}
 
-		_, err = db.Exec("UPDATE schema_migrations SET version = ?", int64(v))
+		err = s.updateVersion(migTo, db)
 		if err != nil {
 			return version, err
 		}
 
-		version = v
+		version = migTo
+	}
+
+	return version, err
+}
+
+func (s Sqlite3Adapter) MigrateDown(db *sqlx.DB) (version int64, err error) {
+	startVer, err := s.version(db)
+	if err != nil {
+		return version, err
+	}
+
+	for i := len(down) - 1; i >= 0; i-- {
+		query := down[i]
+		migVer := int64(i + 1) // The version of the Down migration we will apply
+		migTo := int64(i)      // The version we will end up at
+
+		// Skip migrations for newer versions
+		if migVer > startVer {
+			version = startVer
+			continue
+		}
+
+		_, err = db.Exec(query)
+		if err != nil {
+			return version, err
+		}
+
+		err = s.updateVersion(migTo, db)
+		if err != nil {
+			return version, err
+		}
+
+		version = migTo
 	}
 
 	return version, err
@@ -195,4 +228,10 @@ func (s Sqlite3Adapter) version(db *sqlx.DB) (version int64, err error) {
 	default:
 		return version, nil
 	}
+}
+
+func (s Sqlite3Adapter) updateVersion(version int64, db *sqlx.DB) (err error) {
+	_, err = db.Exec("UPDATE schema_migrations SET version = ?", int64(version))
+
+	return err
 }

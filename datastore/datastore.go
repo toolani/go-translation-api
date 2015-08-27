@@ -17,6 +17,7 @@ type Adapter interface {
 	PostCreate(*sqlx.DB) error
 	EnsureVersionTableExists(*sqlx.DB) error
 	MigrateUp(*sqlx.DB) (int64, error)
+	MigrateDown(*sqlx.DB) (int64, error)
 	CreateDomainQuery() string
 	CreateStringQuery() string
 	CreateTranslationQuery() string
@@ -283,6 +284,16 @@ func (ds *DataStore) MigrateUp() (version int64, err error) {
 	}
 
 	return ds.adapter.MigrateUp(ds.db)
+}
+
+// MigrateDown reverses all available migrations i.e. it removes any changes made by MigrateUp
+func (ds *DataStore) MigrateDown() (version int64, err error) {
+	err = ds.adapter.EnsureVersionTableExists(ds.db)
+	if err != nil {
+		return version, err
+	}
+
+	return ds.adapter.MigrateDown(ds.db)
 }
 
 // Gets all available languages

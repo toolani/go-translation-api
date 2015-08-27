@@ -12,6 +12,7 @@ Available commands are:
   - help: Prints usage instructions
   - import: Imports translations from XLIFF files in the xliff 'import_path' given in the config file.
   - init-db: Ensures that the database contains all necessary tables. Safe to be run multiple times.
+  - remove-db: Removes all translation API data from the database (requires the --force flag).
   - serve: Starts an HTTP server providing a JSON API for accessing and modifying the translation data.
 */
 package main
@@ -28,11 +29,13 @@ import (
 
 var (
 	configPath string
+	force      bool
 )
 
 func init() {
 	defaultConfigPath := filepath.FromSlash("./translation-api.toml")
 	flag.StringVar(&configPath, "config", defaultConfigPath, "Full `path` and file name to the config file")
+	flag.BoolVar(&force, "force", false, "Use to allow potentially destructive changes")
 }
 
 func checkFatal(err error) {
@@ -55,6 +58,8 @@ func parseArgs(args []string) (command string) {
 		return cmdImport
 	case cmdInitDb:
 		return cmdInitDb
+	case cmdRemoveDb:
+		return cmdRemoveDb
 	case cmdServe:
 		return cmdServe
 	}
@@ -65,7 +70,7 @@ func parseArgs(args []string) (command string) {
 func main() {
 	flag.Parse()
 	config, cfgErr := config.Load(configPath)
-	var command = parseArgs(os.Args[1:])
+	var command = parseArgs(flag.Args())
 
 	var commandFunc = CommandFunc(printMissingCommandUsage)
 	switch command {
@@ -77,6 +82,13 @@ func main() {
 		commandFunc = CommandFunc(importer.Import)
 	case cmdInitDb:
 		commandFunc = CommandFunc(initDb)
+	case cmdRemoveDb:
+		// Force flag must be set to _really_ remove the database
+		if force {
+			commandFunc = CommandFunc(removeDb)
+		} else {
+			commandFunc = CommandFunc(printMustForceToRemoveDb)
+		}
 	case cmdServe:
 		commandFunc = CommandFunc(server.Serve)
 	}
