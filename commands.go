@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"github.com/jmoiron/sqlx"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/petert82/go-translation-api/config"
 	"github.com/petert82/go-translation-api/datastore"
 	"os"

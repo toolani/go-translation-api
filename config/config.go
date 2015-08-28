@@ -12,10 +12,12 @@ import (
 	"github.com/BurntSushi/toml"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const (
-	DbDriverSqlite3 = "sqlite3"
+	DbDriverSqlite3    = "sqlite3"
+	DbDriverPostgresql = "postgres"
 )
 
 // Config represents the parsed configuration for the translation API.
@@ -27,11 +29,26 @@ type Config struct {
 
 // valid checks if the Config is valid in its current state.
 func (c *Config) valid() error {
-	if c.DB.Driver != DbDriverSqlite3 {
-		return errors.New(fmt.Sprintf("config: invalid database.driver value. (Must be one of: '%v')", DbDriverSqlite3))
+	if c.DB.Driver != DbDriverSqlite3 && c.DB.Driver != DbDriverPostgresql {
+		drivers := []string{DbDriverPostgresql, DbDriverSqlite3}
+		return errors.New(fmt.Sprintf("config: invalid database.driver value. (Must be one of: '%v')", strings.Join(drivers, ", ")))
 	}
-	if len(c.DB.File) == 0 {
+	if c.DB.Driver == DbDriverSqlite3 && len(c.DB.File) == 0 {
 		return errors.New("config: missing database.file value")
+	}
+	if c.DB.Driver == DbDriverPostgresql {
+		if len(c.DB.Host) == 0 {
+			return errors.New("config: missing database.host value")
+		}
+		if len(c.DB.Name) == 0 {
+			return errors.New("config: missing database.name value")
+		}
+		if len(c.DB.User) == 0 {
+			return errors.New("config: missing database.user value")
+		}
+		if c.DB.Port < 0 {
+			return errors.New("config: invalid database.port value")
+		}
 	}
 	if c.Server.Port < 0 {
 		return errors.New("config: server.port is invalid")
@@ -77,9 +94,14 @@ type XliffConfig struct {
 
 // Gets a connection string for this config.
 func (d *DbConfig) ConnectionString() string {
-	return d.File
-	// username:password@protocol(address)/dbname?param=value
-	// return fmt.Sprintf("%v:%v@tcp(%v:%v)/%v?parseTime=true", d.User, d.Password, d.Host, d.Port, d.Name)
+	cStr := ""
+	switch d.Driver {
+	case DbDriverPostgresql:
+		cStr = fmt.Sprintf("postgres://%v:%v@%v/%v?sslmode=disable", d.User, d.Password, d.Host, d.Name)
+	case DbDriverSqlite3:
+		cStr = d.File
+	}
+	return cStr
 }
 
 // Creates a new Config with some default values.
@@ -88,6 +110,7 @@ func new() Config {
 		DB: DbConfig{
 			Driver: "sqlite3",
 			File:   filepath.FromSlash("./translations.db"),
+			Port:   5432, // Postgres default port
 		},
 		Server: ServerConfig{
 			Port: 8181,

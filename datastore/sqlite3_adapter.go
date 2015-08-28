@@ -49,8 +49,9 @@ func (s Sqlite3Adapter) PostCreate(db *sqlx.DB) (err error) {
 	return nil
 }
 
-var up = []string{
-	`
+func (s Sqlite3Adapter) up() []string {
+	return []string{
+		`
 CREATE TABLE "domain" (
     "id" INTEGER PRIMARY KEY AUTOINCREMENT,
     "name" TEXT UNIQUE
@@ -100,15 +101,18 @@ INSERT INTO language (name, code) VALUES
     ("Hungarian","hu"),
     ("Spanish (US)","es-us");
 `,
+	}
 }
 
-var down = []string{
-	`
+func (s Sqlite3Adapter) down() []string {
+	return []string{
+		`
 DROP TABLE translation;
 DROP TABLE string;
 DROP TABLE language;
 DROP TABLE domain;
 `,
+	}
 }
 
 func (s Sqlite3Adapter) MigrateUp(db *sqlx.DB) (version int64, err error) {
@@ -117,7 +121,7 @@ func (s Sqlite3Adapter) MigrateUp(db *sqlx.DB) (version int64, err error) {
 		return version, err
 	}
 
-	for i, query := range up {
+	for i, query := range s.up() {
 		migTo := int64(i + 1)
 		if migTo <= startVer {
 			version = migTo
@@ -146,6 +150,7 @@ func (s Sqlite3Adapter) MigrateDown(db *sqlx.DB) (version int64, err error) {
 		return version, err
 	}
 
+	down := s.down()
 	for i := len(down) - 1; i >= 0; i-- {
 		query := down[i]
 		migVer := int64(i + 1) // The version of the Down migration we will apply
@@ -198,7 +203,7 @@ func (s Sqlite3Adapter) GetAllLanguagesQuery() string {
 }
 
 func (s Sqlite3Adapter) GetSingleDomainQuery() string {
-	return "SELECT string.id AS stringId, string.name, translation.language_id AS languageId, language.code, translation.id AS translationId, translation.content FROM string INNER JOIN translation ON string.id = translation.string_id INNER JOIN language ON translation.language_id = language.id WHERE string.domain_id = (SELECT id FROM domain where domain.name = ?) ORDER BY string.name"
+	return "SELECT string.id AS string_id, string.name, translation.language_id AS language_id, language.code, translation.id AS translation_id, translation.content FROM string INNER JOIN translation ON string.id = translation.string_id INNER JOIN language ON translation.language_id = language.id WHERE string.domain_id = (SELECT id FROM domain where domain.name = ?) ORDER BY string.name"
 }
 
 func (s Sqlite3Adapter) GetSingleDomainIdQuery() string {

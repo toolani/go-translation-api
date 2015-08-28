@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jmoiron/sqlx"
+	_ "github.com/lib/pq"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/petert82/go-translation-api/config"
 	"github.com/petert82/go-translation-api/trans"
 	"github.com/petert82/go-translation-api/xliff"
@@ -23,7 +25,8 @@ type Adapter interface {
 	MigrateUp(*sqlx.DB) (int64, error)
 	// MigrateDown removes all changes to the database that are applied by MigrateUp
 	MigrateDown(*sqlx.DB) (int64, error)
-	// SupportsLastInsertId
+	// SupportsLastInsertId indicates whether the database supports the LastInsertId function on the
+	// result of an insert query.
 	SupportsLastInsertId() bool
 	CreateDomainQuery() string
 	CreateStringQuery() string
@@ -103,7 +106,10 @@ func New(db *sqlx.DB, driver string) (ds *DataStore, err error) {
 }
 
 func newAdapter(driver string) (adp Adapter, err error) {
+	// Select the appropriate adapter for the driver
 	switch driver {
+	case config.DbDriverPostgresql:
+		adp = &PostgresAdapter{}
 	case config.DbDriverSqlite3:
 		adp = &Sqlite3Adapter{}
 	}
@@ -262,14 +268,19 @@ func (ds *DataStore) updateTranslation(t trans.Translation, transId int64, langI
 	return err
 }
 
+// insert inserts a single row and returns the resulting id. It will use insertUsingLastInsertId or
+// insertUsingQueryRow depending on which the adapter supports.
 func (ds *DataStore) insert(query string, args ...interface{}) (id int64, err error) {
 	if ds.adapter.SupportsLastInsertId() {
 		return ds.insertUsingLastInsertId(query, args...)
 	}
 
-	return 0, errors.New("not implemented")
+	return ds.insertUsingQueryRow(query, args...)
 }
 
+// insertUsingLastInsertId will perform an insert for a single row and return the new row's ID using
+// the LastInsertId method on the insert result. The underlying database must provide support for
+// LastInsertId for this to work.
 func (ds *DataStore) insertUsingLastInsertId(query string, args ...interface{}) (id int64, err error) {
 	result, err := ds.db.Exec(query, args...)
 	if err != nil {
@@ -281,6 +292,15 @@ func (ds *DataStore) insertUsingLastInsertId(query string, args ...interface{}) 
 		return 0, err
 	}
 	return id, nil
+}
+
+// insertUsingQueryRow will perform an insert for a single row using the standard sql.QueryRow
+// function. The adapter must provide insert queries that return an ID as their result for this to
+// work.
+func (ds *DataStore) insertUsingQueryRow(query string, args ...interface{}) (id int64, err error) {
+	err = ds.db.QueryRow(query, args...).Scan(&id)
+
+	return id, err
 }
 
 // MigrateUp migrates to the latest available version of the database
@@ -343,11 +363,11 @@ func (ds *DataStore) GetFullDomain(name string) (d trans.Domain, err error) {
 	defer func() { ds.Stats.Log("domain", "get", time.Since(start)) }()
 
 	var rows []struct {
-		StringId      int64  `db:"stringId"`
+		StringId      int64  `db:"string_id"`
 		Name          string `db:"name"`
-		LanguageId    int64  `db:"languageId"`
+		LanguageId    int64  `db:"language_id"`
 		Code          string `db:"code"`
-		TranslationId int64  `db:"translationId"`
+		TranslationId int64  `db:"translation_id"`
 		Content       string `db:"content"`
 	}
 	err = ds.db.Select(&rows, ds.adapter.GetSingleDomainQuery(), name)
