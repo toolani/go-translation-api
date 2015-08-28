@@ -9,6 +9,27 @@ import (
 // Sqlite3Adapter provides support for SQLite3 databases.
 type Sqlite3Adapter struct{}
 
+func (s Sqlite3Adapter) EnsureVersionTableExists(db *sqlx.DB) (err error) {
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS "schema_migrations" ("version" INTEGER PRIMARY KEY NOT NULL)`)
+	if err != nil {
+		return err
+	}
+
+	var count int
+	err = db.Get(&count, `SELECT COUNT(*) FROM schema_migrations`)
+	if err != nil {
+		return err
+	}
+	switch {
+	case count == 0:
+		_, err = db.Exec(`INSERT INTO schema_migrations (version) VALUES (0)`)
+	case count > 1:
+		err = errors.New("too many rows in schema_migrations table")
+	}
+
+	return err
+}
+
 func (s Sqlite3Adapter) PostCreate(db *sqlx.DB) (err error) {
 	_, err = db.Exec("PRAGMA foreign_keys = ON")
 	if err != nil {
@@ -152,25 +173,8 @@ func (s Sqlite3Adapter) MigrateDown(db *sqlx.DB) (version int64, err error) {
 	return version, err
 }
 
-func (s Sqlite3Adapter) EnsureVersionTableExists(db *sqlx.DB) (err error) {
-	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS "schema_migrations" ("version" INTEGER PRIMARY KEY NOT NULL)`)
-	if err != nil {
-		return err
-	}
-
-	var count int
-	err = db.Get(&count, `SELECT COUNT(*) FROM schema_migrations`)
-	if err != nil {
-		return err
-	}
-	switch {
-	case count == 0:
-		_, err = db.Exec(`INSERT INTO schema_migrations (version) VALUES (0)`)
-	case count > 1:
-		err = errors.New("too many rows in schema_migrations table")
-	}
-
-	return err
+func (s Sqlite3Adapter) SupportsLastInsertId() bool {
+	return true
 }
 
 func (s Sqlite3Adapter) CreateDomainQuery() string {

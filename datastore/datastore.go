@@ -14,10 +14,17 @@ import (
 
 // Adapter provides database-driver-specific query strings, etc.
 type Adapter interface {
-	PostCreate(*sqlx.DB) error
+	// EnsureVersionTableExists ensures that the database contains the necessary table for tracking
+	// the currently applied migration
 	EnsureVersionTableExists(*sqlx.DB) error
+	// PostCreate is called immediately after the datastore is created.
+	PostCreate(*sqlx.DB) error
+	// MigrateUp applies updates the database to the latest available version.
 	MigrateUp(*sqlx.DB) (int64, error)
+	// MigrateDown removes all changes to the database that are applied by MigrateUp
 	MigrateDown(*sqlx.DB) (int64, error)
+	// SupportsLastInsertId
+	SupportsLastInsertId() bool
 	CreateDomainQuery() string
 	CreateStringQuery() string
 	CreateTranslationQuery() string
@@ -183,17 +190,7 @@ func (ds *DataStore) createDomain(name string) (id int64, err error) {
 	start := time.Now()
 	defer func() { ds.Stats.Log("domain", "insert", time.Since(start)) }()
 
-	result, err := ds.db.Exec(ds.adapter.CreateDomainQuery(), name)
-	if err != nil {
-		return 0, nil
-	}
-
-	id, err = result.LastInsertId()
-	if err != nil {
-		return 0, err
-	}
-
-	return id, nil
+	return ds.insert(ds.adapter.CreateDomainQuery(), name)
 }
 
 func (ds *DataStore) createOrGetDomain(name string) (id int64, err error) {
@@ -223,16 +220,7 @@ func (ds *DataStore) createString(name string, domainId int64) (id int64, err er
 	start := time.Now()
 	defer func() { ds.Stats.Log("string", "insert", time.Since(start)) }()
 
-	result, err := ds.db.Exec(ds.adapter.CreateStringQuery(), name, domainId)
-	if err != nil {
-		return 0, err
-	}
-
-	id, err = result.LastInsertId()
-	if err != nil {
-		return 0, err
-	}
-	return id, nil
+	return ds.insert(ds.adapter.CreateStringQuery(), name, domainId)
 }
 
 func (ds *DataStore) createOrGetString(name string, domainId int64) (id int64, err error) {
@@ -258,13 +246,11 @@ func (ds *DataStore) getTranslationId(t trans.Translation, langId int64, stringI
 	return id, nil
 }
 
-func (ds *DataStore) insertTranslation(t trans.Translation, langId int64, stringId int64, domainId int64) (err error) {
+func (ds *DataStore) createTranslation(t trans.Translation, langId int64, stringId int64, domainId int64) (id int64, err error) {
 	start := time.Now()
 	defer func() { ds.Stats.Log("translation", "insert", time.Since(start)) }()
 
-	_, err = ds.db.Exec(ds.adapter.CreateTranslationQuery(), langId, t.Content(), stringId)
-
-	return err
+	return ds.insert(ds.adapter.CreateTranslationQuery(), langId, t.Content(), stringId)
 }
 
 func (ds *DataStore) updateTranslation(t trans.Translation, transId int64, langId int64, stringId int64, domainId int64) (err error) {
@@ -274,6 +260,27 @@ func (ds *DataStore) updateTranslation(t trans.Translation, transId int64, langI
 	_, err = ds.db.Exec(ds.adapter.UpdateTranslationQuery(), langId, t.Content(), stringId, transId)
 
 	return err
+}
+
+func (ds *DataStore) insert(query string, args ...interface{}) (id int64, err error) {
+	if ds.adapter.SupportsLastInsertId() {
+		return ds.insertUsingLastInsertId(query, args...)
+	}
+
+	return 0, errors.New("not implemented")
+}
+
+func (ds *DataStore) insertUsingLastInsertId(query string, args ...interface{}) (id int64, err error) {
+	result, err := ds.db.Exec(query, args...)
+	if err != nil {
+		return 0, err
+	}
+
+	id, err = result.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
 }
 
 // MigrateUp migrates to the latest available version of the database
@@ -405,7 +412,7 @@ func (ds *DataStore) CreateOrUpdateTranslation(domainName, stringName, langCode,
 	if err != nil && !allowCreate {
 		return err
 	} else if err == sql.ErrNoRows && allowCreate {
-		err = ds.insertTranslation(t, lang.Id, stringId, domId)
+		_, err = ds.createTranslation(t, lang.Id, stringId, domId)
 	} else if err == nil {
 		err = ds.updateTranslation(t, transId, lang.Id, stringId, domId)
 	}
@@ -441,7 +448,7 @@ func (ds *DataStore) ImportDomain(d trans.Domain) (err error) {
 				err = ds.updateTranslation(t, transId, lang.Id, stringId, domId)
 			} else {
 				if err == sql.ErrNoRows {
-					err = ds.insertTranslation(t, lang.Id, stringId, domId)
+					_, err = ds.createTranslation(t, lang.Id, stringId, domId)
 				}
 			}
 
