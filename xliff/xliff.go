@@ -153,6 +153,14 @@ func NewFromFile(file string) (xliff *Xliff, err error) {
 	}
 }
 
+func getTranslation(s trans.String, l trans.Language) (t trans.Translation) {
+	if t, ok := s.Translations()[l]; ok {
+		return t
+	}
+
+	return nil
+}
+
 func Export(source trans.Domain, sourceLang trans.Language, dir string) (err error) {
 
 	// Create output directory
@@ -165,6 +173,14 @@ func Export(source trans.Domain, sourceLang trans.Language, dir string) (err err
 
 	// Create our set of xliffs
 	for _, s := range source.Strings() {
+		// The translation's 'source' text, either the content in the target language, or the string
+		// name if content is not available
+		sourceText := s.Name()
+		sourceTrans := getTranslation(s, sourceLang)
+		if sourceTrans != nil {
+			sourceText = sourceTrans.Content()
+		}
+
 		for l, t := range s.Translations() {
 			if _, ok := xliffs[l]; !ok {
 				xliffs[l] = New(source.Name(), sourceLang.Code, l.Code)
@@ -176,7 +192,7 @@ func Export(source trans.Domain, sourceLang trans.Language, dir string) (err err
 				Hash:             hash(s.Name()),
 				TransUnitName:    s.Name(),
 				TransUnitContent: t.Content(),
-				Source:           s.Name(),
+				Source:           sourceText,
 			}
 			xliff.File.XliffDomain.TransUnits = append(xliff.File.XliffDomain.TransUnits, xs)
 			xliffs[l] = xliff

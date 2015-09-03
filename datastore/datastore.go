@@ -510,5 +510,11 @@ func (ds *DataStore) ExportDomain(name, dir string) (err error) {
 		return err
 	}
 
-	return xliff.Export(d, trans.Language{Id: 7, Code: "en", Name: "English"}, dir)
+	l, err := ds.getLanguage("en")
+	if err != nil {
+		return err
+	}
+	l.Name = "" // Allows using l for lookup in result of trans.String.Translations() (since they are also missing Names)
+
+	return xliff.Export(d, l, dir)
 }
