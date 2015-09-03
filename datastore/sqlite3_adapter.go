@@ -204,6 +204,10 @@ func (s Sqlite3Adapter) CreateTranslationQuery() string {
 	return "INSERT INTO translation (language_id, content, string_id) VALUES (?, ?, ?)"
 }
 
+func (s Sqlite3Adapter) DeleteStringQuery() string {
+	return "DELETE FROM string WHERE id = ?"
+}
+
 func (s Sqlite3Adapter) DeleteTranslationQuery() string {
 	return "DELETE FROM translation WHERE id = ?"
 }

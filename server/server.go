@@ -159,6 +159,7 @@ func exportDomainHandler(w http.ResponseWriter, r *http.Request, ds *datastore.D
 }
 
 // Update a translation with new content (or create it if we have a POST request)
+// On success, the affected domain will be re-exported to file.
 func createOrUpdateTranslationHandler(w http.ResponseWriter, r *http.Request, ds *datastore.DataStore) {
 	dName := mux.Vars(r)["domain"]
 	sName := mux.Vars(r)["string"]
@@ -190,7 +191,24 @@ func createOrUpdateTranslationHandler(w http.ResponseWriter, r *http.Request, ds
 	export <- dName
 }
 
-// Delete a single translation
+// Deletes a single string and all its associated translations.
+// On success, the affected domain will be re-exported to file.
+func deleteStringHandler(w http.ResponseWriter, r *http.Request, ds *datastore.DataStore) {
+	dName := mux.Vars(r)["domain"]
+	sName := mux.Vars(r)["string"]
+
+	err := ds.DeleteString(dName, sName)
+	if checkHttp(err, w) {
+		return
+	}
+
+	w.Write([]byte("{\"result\":\"ok\"}\n"))
+
+	export <- dName
+}
+
+// Delete a single translation.
+// On success, the affected domain will be re-exported to file.
 func deleteTranslationHandler(w http.ResponseWriter, r *http.Request, ds *datastore.DataStore) {
 	dName := mux.Vars(r)["domain"]
 	sName := mux.Vars(r)["string"]
@@ -229,23 +247,14 @@ func Serve(c config.Config) {
 	}()
 
 	r := mux.NewRouter().StrictSlash(true)
-
-	languages := r.Path("/languages").Subrouter()
-	languages.Methods("GET").HandlerFunc(handleWithDatastore(db, c.DB.Driver, getLanguagesHandler))
-
-	language := r.PathPrefix("/languages/{lang}").Subrouter()
-	language.Methods("POST").HandlerFunc(handleWithDatastore(db, c.DB.Driver, createLanguageHandler))
-
-	domains := r.Path("/domains").Subrouter()
-	domains.Methods("GET").HandlerFunc(handleWithDatastore(db, c.DB.Driver, getDomainsHandler))
-
-	domain := r.PathPrefix("/domains/{name}").Subrouter()
-	domain.Methods("GET").HandlerFunc(handleWithDatastore(db, c.DB.Driver, getDomainHandler))
-	domain.Methods("POST").Path("/export").HandlerFunc(handleWithDatastore(db, c.DB.Driver, exportDomainHandler))
-
-	translation := r.PathPrefix("/domains/{domain}/strings/{string}/translations/{lang}").Subrouter()
-	translation.Methods("DELETE").HandlerFunc(handleWithDatastore(db, c.DB.Driver, deleteTranslationHandler))
-	translation.Methods("POST", "PUT").HandlerFunc(handleWithDatastore(db, c.DB.Driver, createOrUpdateTranslationHandler))
+	r.HandleFunc("/domains", handleWithDatastore(db, c.DB.Driver, getDomainsHandler)).Methods("GET")
+	r.HandleFunc("/domains/{name}", handleWithDatastore(db, c.DB.Driver, getDomainHandler)).Methods("GET")
+	r.HandleFunc("/domains/{name}/export", handleWithDatastore(db, c.DB.Driver, exportDomainHandler)).Methods("POST")
+	r.HandleFunc("/languages", handleWithDatastore(db, c.DB.Driver, getLanguagesHandler)).Methods("GET")
+	r.HandleFunc("/languages/{lang}", handleWithDatastore(db, c.DB.Driver, createLanguageHandler)).Methods("POST")
+	r.HandleFunc("/domains/{domain}/strings/{string}", handleWithDatastore(db, c.DB.Driver, deleteStringHandler)).Methods("DELETE")
+	r.HandleFunc("/domains/{domain}/strings/{string}/translations/{lang}", handleWithDatastore(db, c.DB.Driver, deleteTranslationHandler)).Methods("DELETE")
+	r.HandleFunc("/domains/{domain}/strings/{string}/translations/{lang}", handleWithDatastore(db, c.DB.Driver, createOrUpdateTranslationHandler)).Methods("POST", "PUT")
 
 	rWithMiddleWares := handlers.CombinedLoggingHandler(os.Stdout, setJsonHeaders(r))
 

@@ -32,6 +32,7 @@ type Adapter interface {
 	CreateLanguageQuery() string
 	CreateStringQuery() string
 	CreateTranslationQuery() string
+	DeleteStringQuery() string
 	DeleteTranslationQuery() string
 	GetAllDomainsQuery() string
 	GetAllLanguagesQuery() string
@@ -462,31 +463,43 @@ func (ds *DataStore) CreateOrUpdateTranslation(domainName, stringName, langCode,
 	return err
 }
 
+// DeleteString deletes a single string and all its associated translations.
+func (ds *DataStore) DeleteString(domainName, stringName string) (err error) {
+	domId, err := ds.getDomainId(domainName)
+	if err != nil {
+		return err
+	}
+
+	stringId, err := ds.getStringId(stringName, domId)
+	if err != nil {
+		return err
+	}
+
+	_, err = ds.db.Exec(ds.adapter.DeleteStringQuery(), stringId)
+	return err
+}
+
 // DeleteTranslation deletes a single translation.
 func (ds *DataStore) DeleteTranslation(domainName, stringName, langCode string) (err error) {
 	domId, err := ds.getDomainId(domainName)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Domain exists")
 
 	stringId, err := ds.getStringId(stringName, domId)
 	if err != nil {
 		return err
 	}
-	fmt.Println("String exists")
 
 	lang, err := ds.getLanguage(langCode)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Language exists")
 
 	transId, err := ds.getTranslationId(lang.Id, stringId, domId)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Translation exists")
 
 	_, err = ds.db.Exec(ds.adapter.DeleteTranslationQuery(), transId)
 	return err
