@@ -193,6 +193,10 @@ func (a PostgresAdapter) CreateTranslationQuery() string {
 	return `INSERT INTO translation (language_id, content, string_id) VALUES ($1, $2, $3) RETURNING id;`
 }
 
+func (a PostgresAdapter) DeleteTranslationQuery() string {
+	return `DELETE FROM translation WHERE id = $1;`
+}
+
 func (a PostgresAdapter) GetAllDomainsQuery() string {
 	return `SELECT name FROM domain ORDER BY name;`
 }

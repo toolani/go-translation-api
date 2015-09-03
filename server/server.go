@@ -190,6 +190,22 @@ func createOrUpdateTranslationHandler(w http.ResponseWriter, r *http.Request, ds
 	export <- dName
 }
 
+// Delete a single translation
+func deleteTranslationHandler(w http.ResponseWriter, r *http.Request, ds *datastore.DataStore) {
+	dName := mux.Vars(r)["domain"]
+	sName := mux.Vars(r)["string"]
+	lang := mux.Vars(r)["lang"]
+
+	err := ds.DeleteTranslation(dName, sName, lang)
+	if checkHttp(err, w) {
+		return
+	}
+
+	w.Write([]byte("{\"result\":\"ok\"}\n"))
+
+	export <- dName
+}
+
 func Serve(c config.Config) {
 	exportDir = c.XLIFF.ExportPath
 	export = make(chan string, 100)
@@ -227,7 +243,8 @@ func Serve(c config.Config) {
 	domain.Methods("GET").HandlerFunc(handleWithDatastore(db, c.DB.Driver, getDomainHandler))
 	domain.Methods("POST").Path("/export").HandlerFunc(handleWithDatastore(db, c.DB.Driver, exportDomainHandler))
 
-	translation := r.PathPrefix("/domains/{domain}/strings/{string}/translations/{lang}")
+	translation := r.PathPrefix("/domains/{domain}/strings/{string}/translations/{lang}").Subrouter()
+	translation.Methods("DELETE").HandlerFunc(handleWithDatastore(db, c.DB.Driver, deleteTranslationHandler))
 	translation.Methods("POST", "PUT").HandlerFunc(handleWithDatastore(db, c.DB.Driver, createOrUpdateTranslationHandler))
 
 	rWithMiddleWares := handlers.CombinedLoggingHandler(os.Stdout, setJsonHeaders(r))

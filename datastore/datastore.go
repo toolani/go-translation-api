@@ -32,6 +32,7 @@ type Adapter interface {
 	CreateLanguageQuery() string
 	CreateStringQuery() string
 	CreateTranslationQuery() string
+	DeleteTranslationQuery() string
 	GetAllDomainsQuery() string
 	GetAllLanguagesQuery() string
 	GetSingleDomainQuery() string
@@ -243,7 +244,7 @@ func (ds *DataStore) createOrGetString(name string, domainId int64) (id int64, e
 	return id, err
 }
 
-func (ds *DataStore) getTranslationId(t trans.Translation, langId int64, stringId int64, domainId int64) (id int64, err error) {
+func (ds *DataStore) getTranslationId(langId int64, stringId int64, domainId int64) (id int64, err error) {
 	start := time.Now()
 	defer func() { ds.Stats.Log("translation", "get", time.Since(start)) }()
 
@@ -449,7 +450,7 @@ func (ds *DataStore) CreateOrUpdateTranslation(domainName, stringName, langCode,
 	}
 
 	t := &Translation{content: content}
-	transId, err := ds.getTranslationId(t, lang.Id, stringId, domId)
+	transId, err := ds.getTranslationId(lang.Id, stringId, domId)
 	if err != nil && !allowCreate {
 		return err
 	} else if err == sql.ErrNoRows && allowCreate {
@@ -458,6 +459,36 @@ func (ds *DataStore) CreateOrUpdateTranslation(domainName, stringName, langCode,
 		err = ds.updateTranslation(t, transId, lang.Id, stringId, domId)
 	}
 
+	return err
+}
+
+// DeleteTranslation deletes a single translation.
+func (ds *DataStore) DeleteTranslation(domainName, stringName, langCode string) (err error) {
+	domId, err := ds.getDomainId(domainName)
+	if err != nil {
+		return err
+	}
+	fmt.Println("Domain exists")
+
+	stringId, err := ds.getStringId(stringName, domId)
+	if err != nil {
+		return err
+	}
+	fmt.Println("String exists")
+
+	lang, err := ds.getLanguage(langCode)
+	if err != nil {
+		return err
+	}
+	fmt.Println("Language exists")
+
+	transId, err := ds.getTranslationId(lang.Id, stringId, domId)
+	if err != nil {
+		return err
+	}
+	fmt.Println("Translation exists")
+
+	_, err = ds.db.Exec(ds.adapter.DeleteTranslationQuery(), transId)
 	return err
 }
 
@@ -485,7 +516,7 @@ func (ds *DataStore) ImportDomain(d trans.Domain) (err error) {
 				return err
 			}
 
-			if transId, err := ds.getTranslationId(t, lang.Id, stringId, domId); err == nil {
+			if transId, err := ds.getTranslationId(lang.Id, stringId, domId); err == nil {
 				err = ds.updateTranslation(t, transId, lang.Id, stringId, domId)
 			} else {
 				if err == sql.ErrNoRows {
