@@ -36,6 +36,7 @@ func (a PostgresAdapter) PostCreate(db *sqlx.DB) (err error) {
 
 func (a PostgresAdapter) up() []string {
 	return []string{
+		// 1
 		`
 CREATE TABLE domain (
     id SERIAL PRIMARY KEY,
@@ -86,17 +87,22 @@ INSERT INTO language (name, code) VALUES
     ('Czech','cs'),
     ('Hungarian','hu'),
     ('Spanish (US)','es-us');`,
+		// 2
+		`INSERT INTO language (code, name) VALUES ('nl', 'Duth');`,
 	}
 }
 
 func (a PostgresAdapter) down() []string {
 	return []string{
+		// 1
 		`
 DROP TABLE IF EXISTS translation;
 DROP TABLE IF EXISTS string;
 DROP TABLE IF EXISTS language;
 DROP TABLE IF EXISTS domain;
 `,
+		// 2
+		`DELETE FROM language WHERE code = 'nl';`,
 	}
 }
 

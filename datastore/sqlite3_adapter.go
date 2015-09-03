@@ -51,6 +51,7 @@ func (s Sqlite3Adapter) PostCreate(db *sqlx.DB) (err error) {
 
 func (s Sqlite3Adapter) up() []string {
 	return []string{
+		// 1
 		`
 CREATE TABLE "domain" (
     "id" INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -101,17 +102,22 @@ INSERT INTO language (name, code) VALUES
     ("Hungarian","hu"),
     ("Spanish (US)","es-us");
 `,
+		// 2
+		`INSERT INTO language (code, name) VALUES ("nl", "Dutch")`,
 	}
 }
 
 func (s Sqlite3Adapter) down() []string {
 	return []string{
+		// 1
 		`
 DROP TABLE translation;
 DROP TABLE string;
 DROP TABLE language;
 DROP TABLE domain;
 `,
+		// 2
+		`DELETE FROM language WHERE code = "nl"`,
 	}
 }
 
