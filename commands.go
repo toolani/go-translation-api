@@ -24,6 +24,7 @@ func (f CommandFunc) Run(c config.Config) {
 const (
 	cmdMissing      = "missing"
 	cmdUnrecognised = "unrecognised"
+	cmdExport       = "export"
 	cmdHelp         = "help"
 	cmdImport       = "import"
 	cmdInitDb       = "init-db"
@@ -33,7 +34,7 @@ const (
 
 // Gets list of available commands
 func availableCommands() []string {
-	return []string{cmdHelp, cmdImport, cmdInitDb, cmdRemoveDb, cmdServe}
+	return []string{cmdHelp, cmdExport, cmdImport, cmdInitDb, cmdRemoveDb, cmdServe}
 }
 
 func getDatastore(c config.Config) (ds *datastore.DataStore) {
@@ -57,6 +58,23 @@ func initDb(c config.Config) {
 	}
 
 	fmt.Println("Successfully migrated the database to version", dbVersion)
+}
+
+// Exports all translation domains to XLIFF
+func export(c config.Config) {
+	ds := getDatastore(c)
+
+	domains, err := ds.GetDomainList()
+	checkFatal(err)
+
+	fmt.Printf("Exporting %v translation domains to: %v\n", len(domains), c.XLIFF.ExportPath)
+
+	for _, dom := range domains {
+		err = ds.ExportDomain(dom.Name(), c.XLIFF.ExportPath)
+		checkFatal(err)
+
+		fmt.Printf("Exported domain '%v'\n", dom.Name())
+	}
 }
 
 // printMustForceToRemoveDb prints usage for the remove-db command

@@ -10,6 +10,7 @@ The program must be run with a 'command' argument to indicate what you would lik
 Available commands are:
 
   - help: Prints usage instructions
+  - export: Exports all translations from the database to XLIFF files in the 'export_path' directory given in the config file.
   - import: Imports translations from XLIFF files in the xliff 'import_path' given in the config file.
   - init-db: Ensures that the database contains all necessary tables. Safe to be run multiple times.
   - remove-db: Removes all translation API data from the database (requires the --force flag).
@@ -54,6 +55,8 @@ func parseArgs(args []string) (command string) {
 	switch args[0] {
 	case cmdHelp:
 		return cmdHelp
+	case cmdExport:
+		return cmdExport
 	case cmdImport:
 		return cmdImport
 	case cmdInitDb:
@@ -78,6 +81,8 @@ func main() {
 		commandFunc = printUnrecognisedCommandUsage(command)
 	case cmdHelp:
 		commandFunc = CommandFunc(printUsage)
+	case cmdExport:
+		commandFunc = CommandFunc(export)
 	case cmdImport:
 		commandFunc = CommandFunc(importer.Import)
 	case cmdInitDb:
