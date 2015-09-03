@@ -186,6 +186,10 @@ func (s Sqlite3Adapter) CreateDomainQuery() string {
 	return "INSERT INTO domain (name) VALUES (?)"
 }
 
+func (s Sqlite3Adapter) CreateLanguageQuery() string {
+	return "INSERT INTO language (code, name) VALUES (?, ?)"
+}
+
 func (s Sqlite3Adapter) CreateStringQuery() string {
 	return "INSERT INTO string (name, domain_id) VALUES (?, ?)"
 }

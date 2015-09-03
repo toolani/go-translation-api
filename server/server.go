@@ -86,6 +86,34 @@ func getLanguagesHandler(w http.ResponseWriter, r *http.Request, ds *datastore.D
 	checkHttp(enc.Encode(ls), w)
 }
 
+// Creates a new language
+func createLanguageHandler(w http.ResponseWriter, r *http.Request, ds *datastore.DataStore) {
+	code := mux.Vars(r)["lang"]
+
+	var content struct {
+		Name string `json:"name"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&content)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Could not decode request (%v)", err.Error()), http.StatusBadRequest)
+		return
+	}
+
+	_, err = ds.CreateLanguage(code, content.Name)
+	switch {
+	case err == datastore.ErrAlreadyExists:
+		_ = checkHttpWithStatus(err, w, http.StatusConflict)
+		return
+
+	case checkHttp(err, w):
+		return
+	}
+
+	w.Write([]byte("{\"result\":\"ok\"}\n"))
+}
+
 // Gets list of available translation domain names
 func getDomainsHandler(w http.ResponseWriter, r *http.Request, ds *datastore.DataStore) {
 	doms, err := ds.GetDomainList()
@@ -188,6 +216,9 @@ func Serve(c config.Config) {
 
 	languages := r.Path("/languages").Subrouter()
 	languages.Methods("GET").HandlerFunc(handleWithDatastore(db, c.DB.Driver, getLanguagesHandler))
+
+	language := r.PathPrefix("/languages/{lang}").Subrouter()
+	language.Methods("POST").HandlerFunc(handleWithDatastore(db, c.DB.Driver, createLanguageHandler))
 
 	domains := r.Path("/domains").Subrouter()
 	domains.Methods("GET").HandlerFunc(handleWithDatastore(db, c.DB.Driver, getDomainsHandler))

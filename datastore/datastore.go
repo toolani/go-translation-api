@@ -29,6 +29,7 @@ type Adapter interface {
 	// result of an insert query.
 	SupportsLastInsertId() bool
 	CreateDomainQuery() string
+	CreateLanguageQuery() string
 	CreateStringQuery() string
 	CreateTranslationQuery() string
 	GetAllDomainsQuery() string
@@ -80,6 +81,9 @@ func (s Stats) String() (out string) {
 
 	return out
 }
+
+// ErrAlreadyExists is returned when trying to add an item that would violate a uniqueness constraint.
+var ErrAlreadyExists = errors.New("Item already exists")
 
 // Creates a new datastore using the given database connection. The driver parameter is used to
 // select the appropriate database adapter, and should be one of the config.DbDriver* constants.
@@ -399,6 +403,23 @@ func (ds *DataStore) GetFullDomain(name string) (d trans.Domain, err error) {
 	}
 
 	return &dom, nil
+}
+
+// Creates a new language
+func (ds *DataStore) CreateLanguage(code, name string) (id int64, err error) {
+	l, err := ds.getLanguage(code)
+	if err != nil && err.Error() != fmt.Sprintf("Language '%v' does not exist in database", code) {
+		// Got an error, and it wasn't 'this language doesnt exist yet'
+		return id, err
+	}
+
+	// Language already exists
+	if err == nil {
+		return l.Id, ErrAlreadyExists
+	}
+
+	// Create the new language
+	return ds.insert(ds.adapter.CreateLanguageQuery(), code, name)
 }
 
 // Updates the translation of the string with the given name to have the given content.

@@ -171,6 +171,10 @@ func (a PostgresAdapter) CreateDomainQuery() string {
 	return `INSERT INTO domain (name) VALUES ($1) RETURNING id;`
 }
 
+func (a PostgresAdapter) CreateLanguageQuery() string {
+	return `INSERT INTO language (code, name) VALUES ($1, $2) RETURNING id;`
+}
+
 func (a PostgresAdapter) CreateStringQuery() string {
 	return `INSERT INTO string (name, domain_id) VALUES ($1, $2) RETURNING id;`
 }
