@@ -89,6 +89,8 @@ INSERT INTO language (name, code) VALUES
     ('Spanish (US)','es-us');`,
 		// 2
 		`INSERT INTO language (code, name) VALUES ('nl', 'Duth');`,
+		// 3
+		`UPDATE language SET name = 'Dutch' WHERE name = 'Duth' AND code = 'nl';`,
 	}
 }
 
@@ -103,6 +105,8 @@ DROP TABLE IF EXISTS domain;
 `,
 		// 2
 		`DELETE FROM language WHERE code = 'nl';`,
+		// 3
+		`UPDATE language SET name = 'Duth' WHERE name = 'Dutch' AND code = 'nl';`,
 	}
 }
 
