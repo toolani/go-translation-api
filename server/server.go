@@ -3,6 +3,7 @@ package server
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -224,6 +225,35 @@ func deleteTranslationHandler(w http.ResponseWriter, r *http.Request, ds *datast
 	export <- dName
 }
 
+// Search for translations
+// Accepts 'term' and 'by' query parameters. 'term' is required and is the text to search for. 'by'
+// is optional and controls which field is used for searching.
+func searchHandler(w http.ResponseWriter, r *http.Request, ds *datastore.DataStore) {
+	term := r.URL.Query().Get("term")
+	if term == "" {
+		checkHttpWithStatus(errors.New("A 'term' query parameter is required"), w, http.StatusBadRequest)
+		return
+	}
+
+	searchBy := r.URL.Query().Get("by")
+	if searchBy == "" {
+		searchBy = "all"
+	}
+
+	var res []datastore.SearchResult
+	var err error
+	switch searchBy {
+	default:
+		res, err = ds.SearchByStringName(term)
+	}
+	if checkHttp(err, w) {
+		return
+	}
+
+	enc := json.NewEncoder(w)
+	checkHttp(enc.Encode(res), w)
+}
+
 func Serve(c config.Config) {
 	exportDir = c.XLIFF.ExportPath
 	export = make(chan string, 100)
@@ -255,6 +285,7 @@ func Serve(c config.Config) {
 	r.HandleFunc("/domains/{domain}/strings/{string}", handleWithDatastore(db, c.DB.Driver, deleteStringHandler)).Methods("DELETE")
 	r.HandleFunc("/domains/{domain}/strings/{string}/translations/{lang}", handleWithDatastore(db, c.DB.Driver, deleteTranslationHandler)).Methods("DELETE")
 	r.HandleFunc("/domains/{domain}/strings/{string}/translations/{lang}", handleWithDatastore(db, c.DB.Driver, createOrUpdateTranslationHandler)).Methods("POST", "PUT")
+	r.HandleFunc("/search", handleWithDatastore(db, c.DB.Driver, searchHandler)).Methods("GET")
 
 	rWithMiddleWares := handlers.CombinedLoggingHandler(os.Stdout, setJsonHeaders(r))
 

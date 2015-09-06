@@ -36,6 +36,7 @@ type Adapter interface {
 	DeleteTranslationQuery() string
 	GetAllDomainsQuery() string
 	GetAllLanguagesQuery() string
+	GetSearchByStringNameQuery() string
 	GetSingleDomainQuery() string
 	GetSingleDomainIdQuery() string
 	GetSingleLanguageQuery() string
@@ -67,6 +68,17 @@ type StatKey struct {
 type StatItem struct {
 	Duration time.Duration
 	Count    int
+}
+
+type SearchResult struct {
+	DomainId           int64  `db:"domain_id"  json:"-"`
+	DomainName         string `db:"domain_name"  json:"domain_name"`
+	StringId           int64  `db:"string_id"  json:"-"`
+	StringName         string `db:"string_name"  json:"string_name"`
+	LanguageId         int64  `db:"language_id"  json:"-"`
+	LanguageCode       string `db:"language_code"  json:"language_code"`
+	TranslationId      int64  `db:"translation_id"  json:"-"`
+	TranslationContent string `db:"translation_content"  json:"translation_content"`
 }
 
 func (s Stats) Log(name, action string, d time.Duration) {
@@ -582,4 +594,13 @@ func (ds *DataStore) ExportDomain(name, dir string) (err error) {
 	l.Name = "" // Allows using l for lookup in result of trans.String.Translations() (since they are also missing Names)
 
 	return xliff.Export(d, l, dir)
+}
+
+// SearchByStringName searches for translations by
+func (ds *DataStore) SearchByStringName(name string) (res []SearchResult, err error) {
+	res = make([]SearchResult, 0)
+	name = fmt.Sprintf("%%%v%%", name)
+	err = ds.db.Select(&res, ds.adapter.GetSearchByStringNameQuery(), name)
+
+	return res, err
 }
