@@ -67,14 +67,19 @@ func (c *Config) valid() error {
 
 // DbConfig contains Database connection configuration.
 type DbConfig struct {
-	// Must currently be 'sqlite3'
+	// Must currently be 'sqlite3' or 'postgres'
 	Driver string
 	// When driver is sqlite3, this is the path to the database file
-	File     string
-	Host     string
-	Port     int
-	Name     string
-	User     string
+	File string
+	// Postgres hostname
+	Host string
+	// Postgres port
+	Port int
+	// Postgres database name
+	Name string
+	// Postgres username
+	User string
+	// Postgres password
 	Password string
 }
 
