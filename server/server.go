@@ -225,9 +225,16 @@ func deleteTranslationHandler(w http.ResponseWriter, r *http.Request, ds *datast
 	export <- dName
 }
 
+const (
+	searchByAll                = "all"
+	searchByStringName         = "string_name"
+	searchByTranslationContent = "translation_content"
+)
+
 // Search for translations
 // Accepts 'term' and 'by' query parameters. 'term' is required and is the text to search for. 'by'
-// is optional and controls which field is used for searching.
+// is optional and controls which field is used for searching. 'by' may be one of "all",
+// "string_name" or "translation_content"
 func searchHandler(w http.ResponseWriter, r *http.Request, ds *datastore.DataStore) {
 	term := r.URL.Query().Get("term")
 	if term == "" {
@@ -237,14 +244,24 @@ func searchHandler(w http.ResponseWriter, r *http.Request, ds *datastore.DataSto
 
 	searchBy := r.URL.Query().Get("by")
 	if searchBy == "" {
-		searchBy = "all"
+		searchBy = searchByAll
+	}
+
+	if searchBy != searchByAll && searchBy != searchByStringName && searchBy != searchByTranslationContent {
+		checkHttpWithStatus(errors.New("Unrecognised value for 'by' parameter. Must be one of: all, string_name, translation_content"), w, http.StatusBadRequest)
+		return
 	}
 
 	var res []datastore.SearchResult
 	var err error
+
 	switch searchBy {
-	default:
+	case searchByStringName:
 		res, err = ds.SearchByStringName(term)
+	case searchByTranslationContent:
+		res, err = ds.SearchByTranslationContent(term)
+	default:
+		res, err = ds.SearchByAllFields(term)
 	}
 	if checkHttp(err, w) {
 		return

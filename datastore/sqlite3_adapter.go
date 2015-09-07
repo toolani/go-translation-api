@@ -104,6 +104,8 @@ INSERT INTO language (name, code) VALUES
 `,
 		// 2
 		`INSERT INTO language (code, name) VALUES ("nl", "Dutch")`,
+		// 3
+		`CREATE INDEX "translation_content" ON "translation"("content");`,
 	}
 }
 
@@ -118,6 +120,8 @@ DROP TABLE domain;
 `,
 		// 2
 		`DELETE FROM language WHERE code = "nl"`,
+		// 3
+		`DROP INDEX "translation_content";`,
 	}
 }
 
@@ -236,6 +240,46 @@ INNER JOIN string s ON s.id = t.string_id
 INNER JOIN language l ON t.language_id = l.id
 INNER JOIN domain d ON s.domain_id = d.id
 WHERE s.name LIKE ?
+LIMIT 100;
+`
+}
+
+func (s Sqlite3Adapter) GetSearchByTranslationContentQuery() string {
+	return `
+SELECT
+    d.id AS domain_id,
+    d.name AS domain_name,
+    s.id AS string_id,
+    s.name AS string_name,
+    l.id AS language_id,
+    l.code AS language_code,
+    t.id AS translation_id,
+    t.content AS translation_content
+FROM translation t
+INNER JOIN string s ON s.id = t.string_id
+INNER JOIN language l ON t.language_id = l.id
+INNER JOIN domain d ON s.domain_id = d.id
+WHERE t.content LIKE ?
+LIMIT 100;
+`
+}
+
+func (s Sqlite3Adapter) GetSearchByAllFieldsQuery() string {
+	return `
+SELECT
+    d.id AS domain_id,
+    d.name AS domain_name,
+    s.id AS string_id,
+    s.name AS string_name,
+    l.id AS language_id,
+    l.code AS language_code,
+    t.id AS translation_id,
+    t.content AS translation_content
+FROM translation t
+INNER JOIN string s ON s.id = t.string_id
+INNER JOIN language l ON t.language_id = l.id
+INNER JOIN domain d ON s.domain_id = d.id
+WHERE s.name LIKE ? OR t.content LIKE ?
 LIMIT 100;
 `
 }

@@ -228,6 +228,44 @@ WHERE s.name LIKE $1
 LIMIT 100;`
 }
 
+func (a PostgresAdapter) GetSearchByTranslationContentQuery() string {
+	return `
+SELECT
+    d.id AS domain_id,
+    d.name AS domain_name,
+    s.id AS string_id,
+    s.name AS string_name,
+    l.id AS language_id,
+    l.code AS language_code,
+    t.id AS translation_id,
+    t.content AS translation_content
+FROM translation t
+INNER JOIN string s ON s.id = t.string_id
+INNER JOIN language l ON t.language_id = l.id
+INNER JOIN domain d ON s.domain_id = d.id
+WHERE t.content LIKE $1
+LIMIT 100;`
+}
+
+func (a PostgresAdapter) GetSearchByAllFieldsQuery() string {
+	return `
+SELECT
+    d.id AS domain_id,
+    d.name AS domain_name,
+    s.id AS string_id,
+    s.name AS string_name,
+    l.id AS language_id,
+    l.code AS language_code,
+    t.id AS translation_id,
+    t.content AS translation_content
+FROM translation t
+INNER JOIN string s ON s.id = t.string_id
+INNER JOIN language l ON t.language_id = l.id
+INNER JOIN domain d ON s.domain_id = d.id
+WHERE s.name LIKE $1 OR t.content LIKE $2
+LIMIT 100;`
+}
+
 func (a PostgresAdapter) GetSingleDomainQuery() string {
 	return `SELECT string.id AS string_id, string.name, translation.language_id AS language_id, language.code, translation.id AS translation_id, translation.content FROM string INNER JOIN translation ON string.id = translation.string_id INNER JOIN language ON translation.language_id = language.id WHERE string.domain_id = (SELECT id FROM domain where domain.name = $1) ORDER BY string.name;`
 }

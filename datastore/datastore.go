@@ -37,6 +37,8 @@ type Adapter interface {
 	GetAllDomainsQuery() string
 	GetAllLanguagesQuery() string
 	GetSearchByStringNameQuery() string
+	GetSearchByTranslationContentQuery() string
+	GetSearchByAllFieldsQuery() string
 	GetSingleDomainQuery() string
 	GetSingleDomainIdQuery() string
 	GetSingleLanguageQuery() string
@@ -596,11 +598,29 @@ func (ds *DataStore) ExportDomain(name, dir string) (err error) {
 	return xliff.Export(d, l, dir)
 }
 
-// SearchByStringName searches for translations by
+// SearchByStringName searches for translations by the string's name.
 func (ds *DataStore) SearchByStringName(name string) (res []SearchResult, err error) {
 	res = make([]SearchResult, 0)
 	name = fmt.Sprintf("%%%v%%", name)
 	err = ds.db.Select(&res, ds.adapter.GetSearchByStringNameQuery(), name)
+
+	return res, err
+}
+
+// SearchByTranslationContent searches for translations by the translation's content.
+func (ds *DataStore) SearchByTranslationContent(content string) (res []SearchResult, err error) {
+	res = make([]SearchResult, 0)
+	content = fmt.Sprintf("%%%v%%", content)
+	err = ds.db.Select(&res, ds.adapter.GetSearchByTranslationContentQuery(), content)
+
+	return res, err
+}
+
+// SearchByAllFields searches for translations by the string's name and the translation's content.
+func (ds *DataStore) SearchByAllFields(searchTerm string) (res []SearchResult, err error) {
+	res = make([]SearchResult, 0)
+	searchTerm = fmt.Sprintf("%%%v%%", searchTerm)
+	err = ds.db.Select(&res, ds.adapter.GetSearchByAllFieldsQuery(), searchTerm, searchTerm)
 
 	return res, err
 }
