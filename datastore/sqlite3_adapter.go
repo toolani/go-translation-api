@@ -285,7 +285,21 @@ LIMIT 100;
 }
 
 func (s Sqlite3Adapter) GetSingleDomainQuery() string {
-	return "SELECT string.id AS string_id, string.name, translation.language_id AS language_id, language.code, translation.id AS translation_id, translation.content FROM string INNER JOIN translation ON string.id = translation.string_id INNER JOIN language ON translation.language_id = language.id WHERE string.domain_id = (SELECT id FROM domain where domain.name = ?) ORDER BY string.name"
+	return `
+SELECT 
+    d.id AS domain_id,
+    s.id AS string_id,
+    s.name AS string_name,
+    t.language_id AS language_id,
+    l.code AS language_code,
+    t.id AS translation_id,
+    t.content
+FROM domain d
+LEFT JOIN string s ON d.id = s.domain_id
+LEFT JOIN translation t ON s.id = t.string_id 
+LEFT JOIN language l ON t.language_id = l.id 
+WHERE d.name = ?
+ORDER BY s.name;`
 }
 
 func (s Sqlite3Adapter) GetSingleDomainIdQuery() string {

@@ -383,12 +383,13 @@ func (ds *DataStore) GetFullDomain(name string) (d trans.Domain, err error) {
 	defer func() { ds.Stats.Log("domain", "get", time.Since(start)) }()
 
 	var rows []struct {
-		StringId      int64  `db:"string_id"`
-		Name          string `db:"name"`
-		LanguageId    int64  `db:"language_id"`
-		Code          string `db:"code"`
-		TranslationId int64  `db:"translation_id"`
-		Content       string `db:"content"`
+		DomainId      int64          `db:"domain_id"`
+		StringId      sql.NullInt64  `db:"string_id"`
+		Name          sql.NullString `db:"string_name"`
+		LanguageId    sql.NullInt64  `db:"language_id"`
+		Code          sql.NullString `db:"language_code"`
+		TranslationId sql.NullInt64  `db:"translation_id"`
+		Content       sql.NullString `db:"content"`
 	}
 	err = ds.db.Select(&rows, ds.adapter.GetSingleDomainQuery(), name)
 	if err != nil {
@@ -404,17 +405,29 @@ func (ds *DataStore) GetFullDomain(name string) (d trans.Domain, err error) {
 	var i int64 = 0
 
 	for _, r := range rows {
-		l := trans.Language{Id: r.LanguageId, Code: r.Code}
-		t := Translation{id: r.TranslationId, content: r.Content}
+		if !r.StringId.Valid || !r.Name.Valid {
+			// An empty domain should have one row like this
+			continue
+		}
 
-		if sIdx, ok := stringIndex[r.Name]; ok == true {
-			dom.strings[sIdx].(*String).translations[l] = &t
-		} else {
-			s := &String{id: r.StringId, name: r.Name, translations: make(map[trans.Language]trans.Translation)}
-			s.translations[l] = &t
+		var s *String
+
+		if sIdx, ok := stringIndex[r.Name.String]; !ok {
+			// Create and index the String, if it doesn't exist already
+			s = &String{id: r.StringId.Int64, name: r.Name.String, translations: make(map[trans.Language]trans.Translation)}
 			dom.strings = append(dom.strings, s)
-			stringIndex[r.Name] = i
+			stringIndex[r.Name.String] = i
 			i++
+		} else {
+			s = dom.strings[sIdx].(*String)
+		}
+
+		if r.LanguageId.Valid && r.Code.Valid && r.TranslationId.Valid && r.Content.Valid {
+			// If we have a translation, add it to the string
+			l := trans.Language{Id: r.LanguageId.Int64, Code: r.Code.String}
+			t := Translation{id: r.TranslationId.Int64, content: r.Content.String}
+
+			s.translations[l] = &t
 		}
 	}
 
