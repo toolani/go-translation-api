@@ -109,7 +109,7 @@ DESCRIPTION
         remove-db - Removes all tables created by the Translation API from the database.
                     All Translation API data will be deleted from the database.
                     Requires that the -force option is provided.
-        serve     - Starts the HTTP Translation API server using the settings defined in the config file.
+        serve     - Starts the Translation API HTTP server using the settings defined in the config file.
         import    - Imports the content of the XLIFF files from the config file's xliff.import_path into the database.
         export    - Exports translations from the database to XLIFF files in the config file's xliff.export_path.
         help      - Prints this help message.
