@@ -157,9 +157,9 @@ A 'Translation' is a string containing some content in a particular Language.
 
 A 'String' is a named entity that we desire to provide translations for. A String may contain zero or more Translations, each into a different language. For example, our homepage may have a welcome message that we identify by the name `welcome_message`, our help page may have a form button containing a label that we identify by the name `submit_label`.
 
-A translation 'Domain' is a named collection of Strings and their associated Translations. For example, all Strings for our homepage may be contained in a Domain called 'homepage'.
+A translation 'Domain' is a named collection of Strings and their associated Translations. For example, all Strings for our homepage may be contained in a Domain called `homepage`.
 
-When exporting data from the Translation API, the translation data is exported into XLIFF files with one file for each domain/language combination. For example, if our database contains a single domain 'homepage' and this contains Strings that are only translated into English and French, an export would produce the files: `homepage.en.xliff` and `homepage.fr.xliff`.
+When exporting data from the Translation API, the translation data is exported into XLIFF files with one file for each domain/language combination. For example, if our database contains a single domain `homepage` and this contains Strings that are only translated into English and French, an export would produce the files: `homepage.en.xliff` and `homepage.fr.xliff`.
 
 ### Endpoints
 #### Domain index
