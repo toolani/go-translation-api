@@ -42,8 +42,7 @@ port = 8181
 # When populating the database with translations imported from XLIFF files
 # they will be read from this path
 import_path = "/var/somepath/translations"
-# New XLIFF files created by the Translation API will be created in this
-# path
+# New XLIFF files created by the Translation API will be created in this path
 export_path = "/var/somepath/translations"
 ```
 
@@ -62,8 +61,7 @@ port = 8181
 # When populating the database with translations imported from XLIFF files
 # they will be read from this path
 import_path = "/var/somepath/translations"
-# New XLIFF files created by the Translation API will be created in this
-# path
+# New XLIFF files created by the Translation API will be created in this path
 export_path = "/var/somepath/translations"
 ```
 
