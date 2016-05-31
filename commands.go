@@ -97,6 +97,25 @@ func removeDb(c config.Config) {
 
 // Prints a normal usage message.
 func printUsage(c config.Config) {
+	instructions := `USAGE
+    go-translation-api [-config path] [-force] command
+
+DESCRIPTION
+    The following commands are available:
+
+        init-db   - Creates or updates the required database table structure for the Translation API.
+                    Must be run at least once before any of the other commands.
+                    No action is taken if the database is already up to date.
+        remove-db - Removes all tables created by the Translation API from the database.
+                    All Translation API data will be deleted from the database.
+                    Requires that the -force option is provided.
+        serve     - Starts the HTTP Translation API server using the settings defined in the config file.
+        import    - Imports the content of the XLIFF files from the config file's xliff.import_path into the database.
+        export    - Exports translations from the database to XLIFF files in the config file's xliff.export_path.
+        help      - Prints this help message.
+
+OPTIONS`
+	fmt.Println(instructions)
 	flag.PrintDefaults()
 }
 
