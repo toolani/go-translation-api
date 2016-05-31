@@ -12,6 +12,7 @@ A web user interface for the API provided by this project can be found in the [T
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Usage](#usage)
+- [API Specification](#api-specification)
 
 ## Requirements
 
