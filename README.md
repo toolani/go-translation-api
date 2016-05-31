@@ -136,6 +136,8 @@ Requires that the `-force` option is provided or nothing will happen.
 #### serve
 Starts the Translation API HTTP server using the settings defined in the config file.
 
+Any changes to translations via the HTTP API will cause the related XLIFF files to be re-exported immediately after the change is successfully committed to the database.
+
 #### import
 Imports the content of the XLIFF files from the config file's `xliff.import_path` into the database. See the notes above regarding the expected file naming convention.
 
