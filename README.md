@@ -144,6 +144,8 @@ Imports the content of the XLIFF files from the config file's `xliff.import_path
 #### export
 Exports translations from the database to XLIFF files in the config file's `xliff.export_path`.
 
+As noted under the `serve` command, under normal usage - where changes to translation data are made exclusively via the HTTP API - the XLIFF files are automatically kept up to date with any translation changes. As such, this command is likely to mostly be useful in cases where the translation data has been edited directly in the database (and not via the HTTP API).
+
 #### help
 Prints usage instructions.
 
@@ -214,6 +216,10 @@ POST /domains/{domain_name}/export
 ```
 
 Exports the contents of a Domain to XLIFF files.
+
+Note that under normal operation, this endpoint should not be needed, as any translation modifications made via the API will automatically trigger a re-export of the affected XLIFF files.
+
+As such, this endpoint would generally only be required if changes have been made directly to the translation data in the database (and not via this API).
 
 ```json
 {
