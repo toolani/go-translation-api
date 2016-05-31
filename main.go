@@ -21,9 +21,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/petert82/go-translation-api/config"
-	"github.com/petert82/go-translation-api/importer"
-	"github.com/petert82/go-translation-api/server"
+	"github.com/toolani/go-translation-api/config"
+	"github.com/toolani/go-translation-api/importer"
+	"github.com/toolani/go-translation-api/server"
 	"os"
 	"path/filepath"
 )

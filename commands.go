@@ -5,8 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"github.com/jmoiron/sqlx"
-	"github.com/petert82/go-translation-api/config"
-	"github.com/petert82/go-translation-api/datastore"
+	"github.com/toolani/go-translation-api/config"
+	"github.com/toolani/go-translation-api/datastore"
 	"os"
 	"strings"
 )

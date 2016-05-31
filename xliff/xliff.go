@@ -5,7 +5,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"github.com/petert82/go-translation-api/trans"
+	"github.com/toolani/go-translation-api/trans"
 	"io/ioutil"
 	"os"
 	"path/filepath"

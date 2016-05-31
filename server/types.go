@@ -1,7 +1,7 @@
 package server
 
 import (
-	"github.com/petert82/go-translation-api/trans"
+	"github.com/toolani/go-translation-api/trans"
 )
 
 type Domain struct {
