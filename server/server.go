@@ -159,6 +159,23 @@ func exportDomainHandler(w http.ResponseWriter, r *http.Request, ds *datastore.D
 	w.Write([]byte("{\"result\":\"ok\"}\n"))
 }
 
+// Exports all domains to XLIFF files on disk
+func exportAllDomainsHandler(w http.ResponseWriter, r *http.Request, ds *datastore.DataStore) {
+	domains, err := ds.GetDomainList()
+	if checkHttp(err, w) {
+		return
+	}
+
+	for _, dom := range domains {
+		err = ds.ExportDomain(dom.Name(), exportDir)
+		if checkHttp(err, w) {
+			return
+		}
+	}
+
+	w.Write([]byte("{\"result\":\"ok\"}\n"))
+}
+
 // Update a translation with new content (or create it if we have a POST request)
 // On success, the affected domain will be re-exported to file.
 func createOrUpdateTranslationHandler(w http.ResponseWriter, r *http.Request, ds *datastore.DataStore) {
@@ -302,6 +319,7 @@ func Serve(c config.Config) {
 	r.HandleFunc("/domains/{domain}/strings/{string}", handleWithDatastore(db, c.DB.Driver, deleteStringHandler)).Methods("DELETE")
 	r.HandleFunc("/domains/{domain}/strings/{string}/translations/{lang}", handleWithDatastore(db, c.DB.Driver, deleteTranslationHandler)).Methods("DELETE")
 	r.HandleFunc("/domains/{domain}/strings/{string}/translations/{lang}", handleWithDatastore(db, c.DB.Driver, createOrUpdateTranslationHandler)).Methods("POST", "PUT")
+	r.HandleFunc("/export", handleWithDatastore(db, c.DB.Driver, exportAllDomainsHandler)).Methods("POST")
 	r.HandleFunc("/search", handleWithDatastore(db, c.DB.Driver, searchHandler)).Methods("GET")
 
 	rWithMiddleWares := handlers.CombinedLoggingHandler(os.Stdout, setJsonHeaders(r))

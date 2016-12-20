@@ -227,6 +227,22 @@ As such, this endpoint would generally only be required if changes have been mad
 }
 ```
 
+#### Export all domains to XLIFF
+
+```
+POST /export
+```
+
+Exports the contents of all available Domains to XLIFF files.
+
+The same caveat regarding when this endpoint might be needed applies as to 'Export domain to XLIFF' above.
+
+```json
+{
+  "result": "ok"
+}
+```
+
 #### Language index
 
 ```
